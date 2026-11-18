@@ -45,6 +45,12 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | B26 | Spustit příkaz v Termuxu | `termux.run` | `RUN_COMMAND` intent, allowlist a návrat stdout/stderr |
 | B27 | Upozornění na novou APK | `app.update.available` | kontrola `latest.json`, download přes AppUpdateBridge |
 | B28 | Aktualizovat aplikaci | `app.update.install` | stažení APK a předání Android Package Installeru |
+| B29 | Vyčistit Termux výstup | `termux.clear` | pouze lokální UI buffer; případně clear scrollback v nativním terminálu |
+| B30 | Reconnect Termux bridge | `termux.reconnect` | znovu navázat native bridge/session |
+| B31 | Vyčistit demo terminál | `terminal.clear` | lokální stav konzole |
+| B32 | Doplnit help do terminálu | `terminal.help` | rychlá vývojářská nápověda |
+| B33 | Otevřít VR scénu | `vr.scene.open` | napojit scene browser / WebXR preview |
+| B34 | Spustit VR build | `vr.build` | napojit Termux agent CLI nebo CI job |
 | C31–C41 | Zavření panelů W01–W11 | `panel.*.close` | lokální layout preference; případně sync uživatele |
 
 Klávesy vysouvané klávesnice mají ID `K{řádek}{sloupec}` a posílají znaky do právě zvoleného chatu nebo Termux inputu. Výřez původní klávesnice je uložen jako `client/public/keyboard-reference.png`; funkční klávesnice je ale vykreslena jako dotykové HTML ovládání, aby skutečně vkládala znaky.
@@ -56,6 +62,9 @@ GitHub Actions po pushi na `main` sestaví APK, aktualizuje release `latest` a n
 ## Aktuální demo vs. reálná integrace
 
 - Chat, metriky, terminál a relace jsou lokální demo stav.
+- Chatové zprávy, rozepsaný chat, demo terminál, Termux výstup, oba příkazové řádky a zvolená záložka se ukládají odděleně do `localStorage` pod prefixem `agentvr.*`; přepnutí záložky je proto neničí.
+- Centrální Chat a Termux mají vlastní buffer i vlastní rozepsaný příkaz. Demo terminál W09 zůstává oddělený od nativního Termuxu W07.
+- Panel Prostředí je připravený jako VR development context: projekt, větev, scene status, WebXR/hot-reload indikátory a rychlé akce Scéna/Build.
 - Reálné funkce se mají doplnit přes samostatné adaptery; UI komponenty nemají obsahovat tajné klíče.
 - Pro Android mikrofon použít oprávnění `RECORD_AUDIO` a speech plugin/bridge.
 - Pro websocket použít reconnect, heartbeat a offline frontu.

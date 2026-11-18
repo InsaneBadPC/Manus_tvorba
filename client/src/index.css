@@ -166,3 +166,12 @@ h1 { margin: 0; font-size: clamp(25px, 7vw, 40px); line-height: 1.04; letter-spa
 @media (min-width: 700px) { .overview-grid { grid-template-columns: repeat(3, 1fr); } .split-grid { grid-template-columns: 1fr 1fr; } .agents-panel { float: left; width: 31%; margin-right: 12px; } .chat-panel { min-height: 473px; } }
 @media (min-width: 700px) { .environment-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 390px) { .status-strip { display: none; } .origin-strip { padding-left: 10px; padding-right: 10px; } .topnav button { padding: 8px; } .topnav button:nth-child(n+3) { display: none; } .welcome-row { align-items: flex-start; flex-direction: column; } .quick-actions { width: 100%; } .primary-button { width: 100%; justify-content: center; } .tool-button { white-space: nowrap; } }
+.terminal-actions { display: flex; gap: 6px; padding: 0 13px 5px; }
+.terminal-actions button { padding: 5px 8px; border: 1px solid rgba(72,186,234,.38); border-radius: 7px; background: rgba(10,49,83,.7); color: #9ddff2; font-size: 10px; cursor: pointer; }
+.environment-content { flex-wrap: wrap; }
+.environment-copy { min-width: 0; flex: 1; }
+.vr-status-row { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+.vr-badge { padding: 3px 5px; border: 1px solid rgba(82,165,201,.4); border-radius: 5px; color: #82acc0; font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
+.vr-badge.ready { border-color: #59e9ae; color: #88f3bf; background: rgba(45,180,118,.12); }
+.vr-actions { display: flex; gap: 5px; width: 100%; padding-left: 49px; }
+.vr-actions button { padding: 6px 9px; border: 1px solid rgba(72,186,234,.38); border-radius: 7px; background: rgba(10,49,83,.7); color: #9ddff2; font-size: 10px; cursor: pointer; }
