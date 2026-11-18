@@ -6,6 +6,7 @@ import {
   SlidersHorizontal, Sparkles, TerminalSquare, Trash2, Wifi, X, Zap,
 } from "lucide-react";
 import { isTermuxBridgeAvailable, runTermuxCommand } from "@/lib/termux";
+import { checkForUpdate, installUpdate, type UpdateInfo } from "@/lib/app-update";
 
 type Agent = { name: string; icon: string; status: "ready" | "busy" | "offline"; color: string };
 type Message = { from: "user" | "agent"; text: string; time: string };
@@ -44,10 +45,18 @@ export default function Home() {
   const [workspaceMode, setWorkspaceMode] = useState<"chat" | "termux">("chat");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [termuxLines, setTermuxLines] = useState<string[]>(["$ termux bridge: připraven", "$ čekám na příkaz…"]);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setMetrics(m => ({ cpu: Math.max(12, Math.min(82, m.cpu + (Math.random() > .5 ? 3 : -2))), ram: Math.max(30, Math.min(85, m.ram + (Math.random() > .5 ? 1 : -1))), gpu: Math.max(8, Math.min(72, m.gpu + (Math.random() > .5 ? 4 : -3))) })), 2400);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    checkForUpdate().then(info => { if (active) setUpdateInfo(info); });
+    return () => { active = false; };
   }, []);
 
   const visibleAgents = useMemo(() => agents.map((agent, index) => ({ ...agent, active: activeAgent === index })), [activeAgent]);
@@ -91,9 +100,11 @@ export default function Home() {
   return <div className="app-shell" onClick={() => focusedPanel && setFocusedPanel(null)}>
     <header className="topbar">
       <div className="brand-mark"><Sparkles size={22} /><div><strong>Insane AI Agent</strong><span>mobilní pracovní plocha</span></div></div>
-      <div className="status-strip"><span className="online-dot" /> Online <span className="muted">•</span> Připraveno</div>
+      <div className="status-strip"><span className="online-dot" /> Online <span className="muted">•</span> Připraveno {updateInfo?.available && <button {...actionProps("B27", "app.update.available")} className="update-pill" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk); setUpdateBusy(false); }}>{updateBusy ? "Stahuji…" : "Nová APK"}</button>}</div>
       <button {...actionProps("B05", "navigation.settings") } className="top-icon" onClick={() => setSelectedNav("Nastavení")} aria-label="Nastavení"><Settings size={18} /></button>
     </header>
+
+    {updateInfo?.available && <div className="update-banner" role="status"><div><strong>Je dostupná nová verze aplikace</strong><small>Build {updateInfo.run ?? updateInfo.build.slice(0, 8)} z GitHubu</small></div><button {...actionProps("B28", "app.update.install")} className="primary-button" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk); setUpdateBusy(false); }}>{updateBusy ? "Stahuji APK…" : "Aktualizovat"}</button></div>}
 
     <div className="origin-strip"><div className="context-card"><span className="context-label">ČAS</span><strong id="C09" data-element-id="C09" data-hook="status.time">12:00</strong><small>St 18. 11. 2026</small></div><div className="context-card"><span className="context-label">POČASÍ</span><strong id="C10" data-element-id="C10" data-hook="status.weather">☀ 6 °C</strong><small>Milovice</small></div><div className="topnav"><button {...actionProps("B01", "navigation.overview")} className={selectedNav === "Přehled" ? "active" : ""} onClick={() => setSelectedNav("Přehled")}><LayoutDashboard size={14} /> Přehled</button><button {...actionProps("B02", "navigation.projects.top")} onClick={() => setSelectedNav("Projekty")}><Folder size={14} /> Projekty</button><button {...actionProps("B03", "navigation.agents.top")} onClick={() => setSelectedNav("Agenti")}><Bot size={14} /> Agenti</button><button {...actionProps("B04", "navigation.terminal.top")} onClick={() => setSelectedNav("Terminál")}><Command size={14} /> Terminál</button></div></div>
 

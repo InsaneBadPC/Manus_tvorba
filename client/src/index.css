@@ -91,6 +91,12 @@ h1 { margin: 0; font-size: clamp(25px, 7vw, 40px); line-height: 1.04; letter-spa
 .agent-row.history { color: #85a6bd; }
 .agent-row.history svg:first-child { color: #5bdfff; }
 .workspace-toggle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; padding: 9px 11px; border: 1px solid rgba(41,169,224,.4); border-radius: 12px; background: rgba(7,31,58,.88); color: #a9c9da; font-size: 11px; }
+.update-pill { margin-left: 6px; padding: 3px 7px; border: 1px solid #75f0b0; border-radius: 999px; background: rgba(61,208,137,.16); color: #a9ffd0; font-size: 9px; cursor: pointer; }
+.update-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 14px; padding: 11px 13px; border: 1px solid rgba(93,240,173,.65); border-radius: 13px; background: linear-gradient(90deg, rgba(18,91,85,.68), rgba(8,45,65,.86)); box-shadow: 0 0 18px rgba(71,228,174,.12); }
+.update-banner strong, .update-banner small { display: block; }
+.update-banner strong { color: #e8fff4; font-size: 12px; }
+.update-banner small { margin-top: 3px; color: #a5d7c1; font-size: 10px; }
+.update-banner .primary-button { flex: 0 0 auto; margin: 0; padding: 8px 10px; }
 .workspace-toggle > span { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: #d8f5ff; font-weight: 700; }
 .segmented { display: flex; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(1,15,30,.8); }
 .segmented button, .keyboard-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #83a8bd; font-size: 10px; cursor: pointer; }

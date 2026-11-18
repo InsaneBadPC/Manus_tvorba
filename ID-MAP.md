@@ -43,9 +43,15 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | B24 | Přepnout na Chat | `workspace.chat` | přepnutí centrálního pracovního panelu |
 | B25 | Přepnout na Termux | `workspace.termux` | zobrazí nativní Termux bridge režim |
 | B26 | Spustit příkaz v Termuxu | `termux.run` | `RUN_COMMAND` intent, allowlist a návrat stdout/stderr |
+| B27 | Upozornění na novou APK | `app.update.available` | kontrola `latest.json`, download přes AppUpdateBridge |
+| B28 | Aktualizovat aplikaci | `app.update.install` | stažení APK a předání Android Package Installeru |
 | C31–C41 | Zavření panelů W01–W11 | `panel.*.close` | lokální layout preference; případně sync uživatele |
 
 Klávesy vysouvané klávesnice mají ID `K{řádek}{sloupec}` a posílají znaky do právě zvoleného chatu nebo Termux inputu. Výřez původní klávesnice je uložen jako `client/public/keyboard-reference.png`; funkční klávesnice je ale vykreslena jako dotykové HTML ovládání, aby skutečně vkládala znaky.
+
+## Aktualizace APK
+
+GitHub Actions po pushi na `main` sestaví APK, aktualizuje release `latest` a nahraje `latest.json`. Aplikace manifest kontroluje při spuštění. Android instalaci z bezpečnostních důvodů vždy předá systémovému Package Installeru, který může vyžádat potvrzení uživatele; tichá instalace bez potvrzení vyžaduje device-owner/MDM nebo root. Soukromý repozitář `Manus_tvorba` není bez autentizace čitelný z běžné aplikace, proto je pro skutečnou kontrolu z nainstalovaného APK potřeba veřejný update endpoint, veřejný release, nebo vlastní autentizovaný proxy server.
 
 ## Aktuální demo vs. reálná integrace
 
