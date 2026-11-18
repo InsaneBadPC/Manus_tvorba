@@ -37,7 +37,15 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | C06 | Mikrofon | `chat.voice.input` | Capacitor plugin nebo native speech-to-text bridge |
 | C07 | Textový vstup | `chat.text.input` | formulář; validace a offline queue |
 | C08 | Terminálový input | `terminal.command.input` | posílat jen do serverového sandboxu |
-| C11–C16 | Zavření panelů | `panel.*.close` | lokální layout preference; případně sync uživatele |
+| C17 | Vysunutí klávesnice | `keyboard.toggle` | čistě lokální UI; v APK lze napojit i Android IME |
+| C42 | Zavření klávesnice | `keyboard.close` | lokální UI |
+| C18 | Termux příkazový input | `termux.command.input` | native Capacitor TermuxBridge |
+| B24 | Přepnout na Chat | `workspace.chat` | přepnutí centrálního pracovního panelu |
+| B25 | Přepnout na Termux | `workspace.termux` | zobrazí nativní Termux bridge režim |
+| B26 | Spustit příkaz v Termuxu | `termux.run` | `RUN_COMMAND` intent, allowlist a návrat stdout/stderr |
+| C31–C41 | Zavření panelů W01–W11 | `panel.*.close` | lokální layout preference; případně sync uživatele |
+
+Klávesy vysouvané klávesnice mají ID `K{řádek}{sloupec}` a posílají znaky do právě zvoleného chatu nebo Termux inputu. Výřez původní klávesnice je uložen jako `client/public/keyboard-reference.png`; funkční klávesnice je ale vykreslena jako dotykové HTML ovládání, aby skutečně vkládala znaky.
 
 ## Aktuální demo vs. reálná integrace
 

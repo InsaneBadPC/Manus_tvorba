@@ -5,6 +5,7 @@ import {
   Monitor, MoreHorizontal, Network, Paperclip, Play, Plus, Send, Settings,
   SlidersHorizontal, Sparkles, TerminalSquare, Trash2, Wifi, X, Zap,
 } from "lucide-react";
+import { isTermuxBridgeAvailable, runTermuxCommand } from "@/lib/termux";
 
 type Agent = { name: string; icon: string; status: "ready" | "busy" | "offline"; color: string };
 type Message = { from: "user" | "agent"; text: string; time: string };
@@ -24,7 +25,7 @@ function Panel({ id, title, icon, children, onClose, className = "", focused = f
   </section>;
 }
 function hookName(id: string) { return id.toLowerCase().replace("w", "window-"); }
-function closeId(id: string) { const num = id.slice(1); return `C${num}`; }
+function closeId(id: string) { const num = Number(id.slice(1)); return `C${30 + num}`; }
 function actionProps(id: string, hook: string) { return { ...idProps(id, hook), type: "button" as const }; }
 
 export default function Home() {
@@ -40,6 +41,9 @@ export default function Home() {
   const [metrics, setMetrics] = useState({ cpu: 32, ram: 54, gpu: 18 });
   const [isListening, setIsListening] = useState(false);
   const [focusedPanel, setFocusedPanel] = useState<string | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<"chat" | "termux">("chat");
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [termuxLines, setTermuxLines] = useState<string[]>(["$ termux bridge: připraven", "$ čekám na příkaz…"]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setMetrics(m => ({ cpu: Math.max(12, Math.min(82, m.cpu + (Math.random() > .5 ? 3 : -2))), ram: Math.max(30, Math.min(85, m.ram + (Math.random() > .5 ? 1 : -1))), gpu: Math.max(8, Math.min(72, m.gpu + (Math.random() > .5 ? 4 : -3))) })), 2400);
@@ -66,6 +70,24 @@ export default function Home() {
     setTerminal(lines => response === "__CLEAR__" ? [] : [...lines, `> ${cmd}`, response]); setCommand("");
   };
 
+  const runTermux = async () => {
+    const cmd = command.trim(); if (!cmd) return;
+    setTermuxLines(lines => [...lines, `$ ${cmd}`]); setCommand("");
+    try {
+      const result = await runTermuxCommand(cmd);
+      setTermuxLines(lines => [...lines, result.ok ? result.stdout || "(bez výstupu)" : `bridge: ${result.stderr ?? result.reason ?? "chyba"}`]);
+    } catch (error) {
+      setTermuxLines(lines => [...lines, `bridge: ${error instanceof Error ? error.message : "Termux command failed"}`]);
+    }
+  };
+
+  const pressKey = (key: string) => {
+    if (key === "⌫") { workspaceMode === "termux" ? setCommand(v => v.slice(0, -1)) : setDraft(v => v.slice(0, -1)); return; }
+    if (key === "␣") { workspaceMode === "termux" ? setCommand(v => `${v} `) : setDraft(v => `${v} `); return; }
+    if (key === "↵") { workspaceMode === "termux" ? runTermux() : sendMessage(); return; }
+    workspaceMode === "termux" ? setCommand(v => v + key) : setDraft(v => v + key);
+  };
+
   return <div className="app-shell" onClick={() => focusedPanel && setFocusedPanel(null)}>
     <header className="topbar">
       <div className="brand-mark"><Sparkles size={22} /><div><strong>Insane AI Agent</strong><span>mobilní pracovní plocha</span></div></div>
@@ -88,7 +110,11 @@ export default function Home() {
 
       {openPanels.W06 && <Panel id="W06" focused={focusedPanel === "W06"} onFocus={() => setFocusedPanel("W06")} title="AGENTI & SESSIONS" icon={<Network size={17} />} onClose={() => togglePanel("W06")} className="agents-panel"><div className="session-head"><span>{sessionCount} aktivní relace</span><button {...actionProps("B06", "sessions.create.secondary")} className="icon-button accent" onClick={(event) => { event.stopPropagation(); setSessionCount(c => c + 1); }}><Plus size={16} /></button></div>{visibleAgents.map((agent, index) => <button {...actionProps(`B0${7 + index}`, `agent.select.${agent.name.toLowerCase().replaceAll(" ", "-")}`)} className={`agent-row ${agent.active ? "selected" : ""}`} key={agent.name} onClick={(event) => { event.stopPropagation(); setActiveAgent(index); }}><span className="agent-avatar" style={{ background: agent.color }}>{agent.icon}</span><span className="agent-name">{agent.name}</span><span className={`agent-status ${agent.status}`} />{agent.active && <ChevronRight size={16} />}</button>)}<button {...actionProps("B11", "sessions.history")} className="agent-row history" onClick={(event) => event.stopPropagation()}><History size={17} /><span>Historie sessions</span><ChevronRight size={16} /></button></Panel>}
 
-      {openPanels.W07 && <Panel id="W07" focused={focusedPanel === "W07"} onFocus={() => setFocusedPanel("W07")} title="Chat & Stream" icon={<MessageCircle size={17} />} onClose={() => togglePanel("W07")} className="chat-panel"><div className="stream-status"><span className="online-dot" /> Demo stream <button {...actionProps("C05", "chat.stream.select")} className="select-chip" onClick={(event) => { event.stopPropagation(); setTool(tool === "Demo stream" ? "Nástroje" : "Demo stream"); }}>{tool}<ChevronDown size={13} /></button></div><div className="messages" aria-live="polite">{messages.map((message, i) => <div className={`message ${message.from}`} key={`${message.time}-${i}`}><div className="message-bubble">{message.text}<small>{message.time}</small></div></div>)}</div><div className="chat-toolbar"><button {...actionProps("B12", "chat.tools")} className="tool-button" onClick={(event) => { event.stopPropagation(); setTool(tool === "Nástroje" ? "Akce" : "Nástroje"); }}><SlidersHorizontal size={15} /> {tool}<ChevronDown size={13} /></button><button {...actionProps("B13", "chat.git")} className="tool-button" onClick={(event) => event.stopPropagation()}><GitBranch size={15} /> Git</button><button {...actionProps("B14", "chat.files")} className="tool-button" onClick={(event) => event.stopPropagation()}><Folder size={15} /> Soubory</button></div><div className="composer"><button {...actionProps("C06", "chat.voice.input")} className={`mic-button ${isListening ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setIsListening(v => !v); }} aria-label="Hlasový vstup"><Mic size={19} /></button><input {...idProps("C07", "chat.text.input")} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder={isListening ? "Poslouchám… (demo hook)" : "Zadej příkaz nebo použij hlas…"} /><button {...actionProps("B16", "chat.send")} className="send-button" onClick={(event) => { event.stopPropagation(); sendMessage(); }} aria-label="Odeslat"><Send size={18} /></button></div></Panel>}
+      <div className="workspace-toggle" onClick={(event) => event.stopPropagation()}><span><Code2 size={15} /> Pracovní režim</span><div className="segmented"><button {...actionProps("B24", "workspace.chat")} className={workspaceMode === "chat" ? "active" : ""} onClick={() => setWorkspaceMode("chat")}><MessageCircle size={14} /> Chat</button><button {...actionProps("B25", "workspace.termux")} className={workspaceMode === "termux" ? "active" : ""} onClick={() => setWorkspaceMode("termux")}><TerminalSquare size={14} /> Termux</button></div><button {...actionProps("C17", "keyboard.toggle")} className={`keyboard-toggle ${keyboardOpen ? "active" : ""}`} onClick={() => setKeyboardOpen(v => !v)} aria-label="Zobrazit klávesnici"><Menu size={16} /> Klávesnice</button></div>
+
+      {openPanels.W07 && <Panel id="W07" focused={focusedPanel === "W07"} onFocus={() => setFocusedPanel("W07")} title={workspaceMode === "chat" ? "Chat & Stream" : "Termux / CLI agenti"} icon={workspaceMode === "chat" ? <MessageCircle size={17} /> : <TerminalSquare size={17} />} onClose={() => togglePanel("W07")} className={`chat-panel ${workspaceMode === "termux" ? "termux-panel" : ""}`}><div className="stream-status"><span className={`online-dot ${workspaceMode === "termux" && !isTermuxBridgeAvailable() ? "offline" : ""}`} /> {workspaceMode === "termux" ? (isTermuxBridgeAvailable() ? "Termux připojen" : "Termux bridge čeká na APK") : "Chat stream"} <button {...actionProps("C05", "chat.stream.select")} className="select-chip" onClick={(event) => { event.stopPropagation(); setTool(tool === "Demo stream" ? "Nástroje" : "Demo stream"); }}>{tool}<ChevronDown size={13} /></button></div>{workspaceMode === "chat" ? <><div className="messages" aria-live="polite">{messages.map((message, i) => <div className={`message ${message.from}`} key={`${message.time}-${i}`}><div className="message-bubble">{message.text}<small>{message.time}</small></div></div>)}</div><div className="chat-toolbar"><button {...actionProps("B12", "chat.tools")} className="tool-button" onClick={(event) => { event.stopPropagation(); setTool(tool === "Nástroje" ? "Akce" : "Nástroje"); }}><SlidersHorizontal size={15} /> {tool}<ChevronDown size={13} /></button><button {...actionProps("B13", "chat.git")} className="tool-button" onClick={(event) => event.stopPropagation()}><GitBranch size={15} /> Git</button><button {...actionProps("B14", "chat.files")} className="tool-button" onClick={(event) => event.stopPropagation()}><Folder size={15} /> Soubory</button></div><div className="composer"><button {...actionProps("C06", "chat.voice.input")} className={`mic-button ${isListening ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); setIsListening(v => !v); }} aria-label="Hlasový vstup"><Mic size={19} /></button><input {...idProps("C07", "chat.text.input")} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} placeholder={isListening ? "Poslouchám… (demo hook)" : "Zadej příkaz nebo použij hlas…"} /><button {...actionProps("B16", "chat.send")} className="send-button" onClick={(event) => { event.stopPropagation(); sendMessage(); }} aria-label="Odeslat"><Send size={18} /></button></div></> : <><div className="termux-console">{termuxLines.map((line, i) => <div key={`${line}-${i}`}>{line}</div>)}</div><div className="terminal-input"><span>›</span><input {...idProps("C18", "termux.command.input")} value={command} onChange={e => setCommand(e.target.value)} onKeyDown={e => e.key === "Enter" && runTermux()} placeholder="npm, git, agent CLI…" /><button {...actionProps("B26", "termux.run")} onClick={(event) => { event.stopPropagation(); runTermux(); }}><Play size={14} /></button></div><p className="termux-note">V náhledu je bridge odpojený. V APK se příkazy posílají do nativního Termuxu přes RUN_COMMAND.</p></>}</Panel>}
+
+      {keyboardOpen && <div className="keyboard-dock" onClick={(event) => event.stopPropagation()}><div className="keyboard-dock-head"><span><Menu size={14} /> Dotyková klávesnice</span><button {...actionProps("C42", "keyboard.close")} onClick={() => setKeyboardOpen(false)}><X size={15} /></button></div>{[["1","2","3","4","5","6","7","8","9","0"],["Q","W","E","R","T","Z","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["⌫","⇧","Y","X","C","V","B","N","M","↵"],["␣"]].map((row, rowIndex) => <div className="keyboard-row" key={rowIndex}>{row.map((key, keyIndex) => <button key={key} {...actionProps(`K${rowIndex + 1}${keyIndex + 1}`, `keyboard.key.${key}`)} className={key === "␣" ? "space-key" : ""} onClick={() => pressKey(key)}>{key}</button>)}</div>)}</div>}
 
       <div className="split-grid">{openPanels.W08 && <Panel id="W08" focused={focusedPanel === "W08"} onFocus={() => setFocusedPanel("W08")} title="CODE DIFF" icon={<Code2 size={17} />} onClose={() => togglePanel("W08")}><div className="diff-file"><span className="file-dot" /> src/agent/worker.ts <span className="diff-count">+8 −2</span></div><pre className="diff"><span>  async function runTask() {'{'}</span><em>+   return agent.execute(task);</em><span>  {'}'}</span></pre><button {...actionProps("B14", "diff.open-file")} className="ghost-button" onClick={(event) => event.stopPropagation()}>Otevřít soubor <ChevronRight size={14} /></button></Panel>}{openPanels.W09 && <Panel id="W09" focused={focusedPanel === "W09"} onFocus={() => setFocusedPanel("W09")} title="TERMINÁL" icon={<TerminalSquare size={17} />} onClose={() => togglePanel("W09")}><div className="terminal-warning"><Zap size={14} /> Bezpečný demo režim</div><div className="terminal-output">{terminal.map((line, i) => <div key={`${line}-${i}`}>{line}</div>)}</div><div className="terminal-input"><span>›</span><input {...idProps("C08", "terminal.command.input")} value={command} onChange={e => setCommand(e.target.value)} onKeyDown={e => e.key === "Enter" && runCommand()} placeholder="help, status…" /><button {...actionProps("B15", "terminal.run")} onClick={(event) => { event.stopPropagation(); runCommand(); }}><Play size={14} /></button></div></Panel>}</div>
 
