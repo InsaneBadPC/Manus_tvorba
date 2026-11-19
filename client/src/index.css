@@ -1,2 +1,11 @@
 
 .device-status-chip { display: inline-flex; align-items: center; padding: 3px 5px; border: 1px solid rgba(76,192,232,.28); border-radius: 5px; color: #9ed9ec; font-size: 9px; white-space: nowrap; }
+
+.session-history { display: grid; gap: 6px; margin: 8px 10px 12px 38px; max-height: 260px; overflow: auto; }
+.session-file { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid rgba(140, 160, 210, .16); border-radius: 8px; background: rgba(10, 15, 28, .55); color: inherit; text-align: left; cursor: pointer; }
+.session-file:hover { border-color: rgba(126, 155, 255, .7); background: rgba(45, 61, 104, .35); }
+.session-file span { font-size: 12px; font-weight: 650; }
+.session-file small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.session-preview { margin-top: 4px; padding: 8px; border: 1px solid rgba(126, 155, 255, .3); border-radius: 8px; background: #080c17; }
+.session-preview strong { display: block; margin-bottom: 6px; font-size: 11px; }
+.session-preview pre { max-height: 180px; margin: 0; overflow: auto; color: #b9c7e9; font: 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }

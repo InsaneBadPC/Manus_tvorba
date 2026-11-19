@@ -32,7 +32,7 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | OK | B08 | Antigravity | Vybere agenta Antigravity. |
 | OK | B09 | Freebuff CLI | Vybere agenta Freebuff CLI. |
 | OK | B10 | Freebuff CLI / třetí agent | Vybere třetího agenta podle legendy a aktuálního seznamu. |
-| OK | B11 | Historie sessions | Otevře/aktivuje historii předchozích relací. |
+| OK | B11 | Historie sessions | Spustí skutečný scan HOME Termuxu, zobrazí nalezené session/conversation soubory a po klepnutí načte jejich obsah. |
 | OK | B12 | Nástroje | Přepíná nabídku nástrojů chatu. |
 | OK | B13 | Git | Spustí skutečné `git status --short --branch` přes Termux a přidá výstup. |
 | OK | B14 | Soubory | Spustí skutečný výpis souborů workspace přes Termux. |

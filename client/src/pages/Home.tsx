@@ -12,6 +12,7 @@ import { SceneViewport } from "@/components/SceneViewport";
 
 type Agent = { name: string; icon: string; cli: string; status: "ready" | "busy" | "offline"; color: string };
 type Message = { from: "user" | "agent"; text: string; time: string };
+type AgentSession = { timestamp: number; size: number; path: string; name: string };
 
 const agents: Agent[] = [
   { name: "Kilo Code", icon: "K", cli: "kilo", status: "ready", color: "#8aa6ff" },
@@ -57,6 +58,11 @@ export default function Home() {
   const [runtimeEvents, setRuntimeEvents] = useStoredState<string[]>("runtime.events", []);
   const [draft, setDraft] = useStoredState("chat.draft", "");
   const [sessionCount, setSessionCount] = useState(1);
+  const [agentSessions, setAgentSessions] = useState<AgentSession[]>([]);
+  const [sessionsBusy, setSessionsBusy] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<AgentSession | null>(null);
+  const [sessionContent, setSessionContent] = useState("");
   const [tool, setTool] = useState("Nástroje");
   const [shell, setShell] = useState<"Bash" | "Sh">("Bash");
   const [terminal, setTerminal] = useStoredState<string[]>("terminal.lines", ["> Termux bridge: čekám na skutečný příkaz…"]);
@@ -149,6 +155,35 @@ export default function Home() {
     results.forEach((result, index) => addWorkspaceEvent(`${agents[index].name}: ${result.ok ? result.stdout || "(bez výstupu)" : result.stderr ?? result.reason ?? "příkaz selhal"}`));
   };
 
+  const loadAgentSessions = async () => {
+    setSessionsBusy(true);
+    const discovery = "find \"$HOME\" -type f \( -iname '*session*' -o -iname '*conversation*' -o -iname '*.jsonl' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -printf '%T@\\t%s\\t%p\\n' 2>/dev/null | sort -rn | head -200";
+    const result = await runTermuxCommand(discovery);
+    if (!result.ok) {
+      setAgentSessions([]);
+      addWorkspaceEvent(`Historie sessions: ${result.stderr ?? result.reason ?? "Termux bridge není dostupný"}`);
+      setSessionsLoaded(true);
+      setSessionsBusy(false);
+      return;
+    }
+    const parsed = result.stdout.split("\n").map(line => {
+      const [timestamp, size, ...pathParts] = line.split("\t");
+      const path = pathParts.join("\t").trim();
+      if (!path || !timestamp || !size) return null;
+      return { timestamp: Number(timestamp), size: Number(size), path, name: path.split("/").pop() || path };
+    }).filter((session): session is AgentSession => Boolean(session && Number.isFinite(session.timestamp) && Number.isFinite(session.size)));
+    setAgentSessions(parsed);
+    setSessionsLoaded(true);
+    setSessionsBusy(false);
+    addWorkspaceEvent(`Historie sessions: načteno ${parsed.length} souborů z Termuxu.`);
+  };
+
+  const openAgentSession = async (session: AgentSession) => {
+    setSelectedSession(session);
+    const result = await runTermuxCommand(`tail -n 120 -- ${shellQuote(session.path)}`);
+    setSessionContent(result.ok ? (result.stdout || "(session je prázdná)") : `Nelze načíst session: ${result.stderr ?? result.reason ?? "příkaz selhal"}`);
+  };
+
   const runTermux = async () => {
     const cmd = termuxCommand.trim(); if (!cmd) return;
     setTermuxLines(lines => [...lines, `$ ${cmd}`]);
@@ -215,7 +250,7 @@ export default function Home() {
         {openPanels.W05 && <Panel id="W05" focused={focusedPanel === "W05"} onFocus={() => setFocusedPanel("W05")} title="Tok práce agentů" icon={<Network size={17} />} onClose={() => togglePanel("W05")}><div className="flow-map"><span className="flow-node">Termux</span><i /><span className="flow-core"><Bot size={19} /></span><i /><span className="flow-node">CLI výstup</span></div><small className="flow-caption">{runtimeEvents.length ? `${runtimeEvents.length} skutečných runtime událostí` : "Čeká na skutečné spuštění CLI agenta"}</small></Panel>}
       </div>
 
-      {openPanels.W06 && <Panel id="W06" focused={focusedPanel === "W06"} onFocus={() => setFocusedPanel("W06")} title="AGENTI & SESSIONS" icon={<Network size={17} />} onClose={() => togglePanel("W06")} className="agents-panel"><div className="session-head"><span>{sessionCount} aktivní relace</span><button {...actionProps("B36", "sessions.create.secondary")} className="icon-button accent" onClick={(event) => { event.stopPropagation(); setSessionCount(c => c + 1); }}><Plus size={16} /></button></div><button {...actionProps("B07", "agent.active")} className="agent-row selected" onClick={(event) => { event.stopPropagation(); setActiveAgent(activeAgent); }}><span className="agent-avatar" style={{ background: agents[activeAgent].color }}>{agents[activeAgent].icon}</span><span className="agent-name">Aktivní agent: {agents[activeAgent].name}</span><span className="agent-status ready" /><ChevronRight size={16} /></button>{visibleAgents.map((agent, index) => <button {...actionProps(`B${String(8 + index).padStart(2, "0")}`, `agent.select.${agent.name.toLowerCase().replaceAll(" ", "-")}`)} className={`agent-row ${agent.active ? "selected" : ""}`} key={agent.name} onClick={(event) => { event.stopPropagation(); setActiveAgent(index); }}><span className="agent-avatar" style={{ background: agent.color }}>{agent.icon}</span><span className="agent-name">{agent.name}</span><span className={`agent-status ${agent.status}`} />{agent.active && <ChevronRight size={16} />}</button>)}<button {...actionProps("B11", "sessions.history")} className="agent-row history" onClick={(event) => { event.stopPropagation(); setSelectedNav("Historie"); addWorkspaceEvent("Historie sessions: připraveno k otevření."); }}><History size={17} /><span>Historie sessions</span><ChevronRight size={16} /></button></Panel>}
+      {openPanels.W06 && <Panel id="W06" focused={focusedPanel === "W06"} onFocus={() => setFocusedPanel("W06")} title="AGENTI & SESSIONS" icon={<Network size={17} />} onClose={() => togglePanel("W06")} className="agents-panel"><div className="session-head"><span>{sessionCount} aktivní relace</span><button {...actionProps("B36", "sessions.create.secondary")} className="icon-button accent" onClick={(event) => { event.stopPropagation(); setSessionCount(c => c + 1); }}><Plus size={16} /></button></div><button {...actionProps("B07", "agent.active")} className="agent-row selected" onClick={(event) => { event.stopPropagation(); setActiveAgent(activeAgent); }}><span className="agent-avatar" style={{ background: agents[activeAgent].color }}>{agents[activeAgent].icon}</span><span className="agent-name">Aktivní agent: {agents[activeAgent].name}</span><span className="agent-status ready" /><ChevronRight size={16} /></button>{visibleAgents.map((agent, index) => <button {...actionProps(`B${String(8 + index).padStart(2, "0")}`, `agent.select.${agent.name.toLowerCase().replaceAll(" ", "-")}`)} className={`agent-row ${agent.active ? "selected" : ""}`} key={agent.name} onClick={(event) => { event.stopPropagation(); setActiveAgent(index); }}><span className="agent-avatar" style={{ background: agent.color }}>{agent.icon}</span><span className="agent-name">{agent.name}</span><span className={`agent-status ${agent.status}`} />{agent.active && <ChevronRight size={16} />}</button>)}<button {...actionProps("B11", "sessions.history")} className="agent-row history" onClick={(event) => { event.stopPropagation(); setSelectedNav("Historie"); void loadAgentSessions(); }}><History size={17} /><span>{sessionsBusy ? "Načítám sessions z Termuxu…" : "Historie sessions z Termuxu"}</span><ChevronRight size={16} /></button>{sessionsLoaded && <div className="session-history" onClick={event => event.stopPropagation()}>{agentSessions.length === 0 ? <span className="subtle">Nenalezen žádný session/conversation soubor v HOME Termuxu.</span> : agentSessions.map(session => <button className="session-file" key={session.path} onClick={() => void openAgentSession(session)}><span>{session.name}</span><small>{session.path} · {Math.round(session.size / 1024)} KB</small></button>)}{selectedSession && <div className="session-preview"><strong>{selectedSession.name}</strong><pre>{sessionContent || "Načítám obsah…"}</pre></div>}</div>}</Panel>}
 
       <div className="workspace-toggle" onClick={(event) => event.stopPropagation()}><span><Code2 size={15} /> Pracovní režim</span><div className="segmented"><button {...actionProps("B24", "workspace.chat")} className={workspaceMode === "chat" ? "active" : ""} onClick={() => setWorkspaceMode("chat")}><MessageCircle size={14} /> Chat</button><button {...actionProps("B25", "workspace.termux")} className={workspaceMode === "termux" ? "active" : ""} onClick={() => setWorkspaceMode("termux")}><TerminalSquare size={14} /> Termux</button></div><button {...actionProps("C17", "keyboard.toggle")} className={`keyboard-toggle ${keyboardOpen ? "active" : ""}`} onClick={() => setKeyboardOpen(v => !v)} aria-label="Zobrazit klávesnici"><Menu size={16} /> Klávesnice</button></div>
 
