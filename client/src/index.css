@@ -289,3 +289,18 @@ EOF
 .vr-eye-surface .environment-grid .scene-preview { height: 54px; }
 .vr-eye-surface .environment-grid .environment-copy, .vr-eye-surface .environment-grid .environment-icon, .vr-eye-surface .environment-grid .vr-actions { display: none; }
 .vr-eye-surface .environment-grid .scene-preview + .environment-icon { display: none; }
+
+/* The uploaded model is the main world layer; every functional UI surface floats above it. */
+.scene-main { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; background: radial-gradient(circle at 50% 46%, rgba(16,104,160,.24), rgba(1,7,18,.82) 78%); }
+.scene-main::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(1,7,18,.2), transparent 34%, rgba(1,7,18,.35)); }
+.scene-main .scene-viewport { opacity: .98; filter: saturate(1.35) brightness(1.2); }
+.vr-eye-surface > .scene-main, .normal-stage > .scene-main { z-index: 0; }
+.vr-eye-surface > .topbar, .vr-eye-surface > .origin-strip, .vr-eye-surface > .dashboard, .vr-eye-surface > .bottom-nav, .vr-eye-surface > .update-banner { z-index: 4; }
+.normal-stage > .topbar, .normal-stage > .origin-strip, .normal-stage > .dashboard, .normal-stage > .bottom-nav, .normal-stage > .update-banner { position: relative; z-index: 2; }
+.vr-eye-surface > .dashboard, .normal-stage > .dashboard { background: transparent; }
+.vr-eye-surface .panel { background: linear-gradient(160deg, rgba(8,35,65,.66), rgba(3,15,31,.58)); }
+.normal-stage .panel { background: linear-gradient(160deg, rgba(8,35,65,.76), rgba(3,15,31,.72)); }
+.vr-eye-surface > .topbar, .normal-stage > .topbar { z-index: 12; }
+.vr-eye-surface > .origin-strip, .normal-stage > .origin-strip { z-index: 11; }
+.vr-eye-surface > .dashboard, .normal-stage > .dashboard { z-index: 10; }
+.vr-eye-surface > .bottom-nav, .normal-stage > .bottom-nav { z-index: 13; }

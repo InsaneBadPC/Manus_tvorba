@@ -146,7 +146,6 @@ export default function Home() {
     <div className="origin-strip"><div className="context-card"><span className="context-label">ČAS</span><strong id="C09" data-element-id="C09" data-hook="status.time">12:00</strong><small>St 18. 11. 2026</small></div><div className="context-card"><span className="context-label">POČASÍ</span><strong id="C10" data-element-id="C10" data-hook="status.weather">☀ 6 °C</strong><small>Milovice</small></div><div className="topnav"><button {...actionProps("B01", "navigation.overview")} className={selectedNav === "Přehled" ? "active" : ""} onClick={() => setSelectedNav("Přehled")}><LayoutDashboard size={14} /> Přehled</button><button {...actionProps("B02", "navigation.projects.top")} onClick={() => setSelectedNav("Projekty")}><Folder size={14} /> Projekty</button><button {...actionProps("B03", "navigation.agents.top")} onClick={() => setSelectedNav("Agenti")}><Bot size={14} /> Agenti</button><button {...actionProps("B04", "navigation.terminal.top")} onClick={() => setSelectedNav("Terminál")}><Command size={14} /> Terminál</button></div></div>
 
     <main className={`dashboard ${focusedPanel ? "has-focus" : ""}`}>
-      {eye !== "normal" && <div className="scene-backdrop"><SceneViewport eye={eye} /></div>}
       <div className="welcome-row"><div><p className="eyebrow">STŘEDA · 18. 11. 2026</p><h1>Pracovní plocha agentů</h1><p className="lead">Řiď své AI agenty z jednoho místa.</p></div><div className="quick-actions"><button {...actionProps("B06", "sessions.create")} className="primary-button" onClick={() => setSessionCount(c => c + 1)}><Plus size={16} /> Nová relace</button></div></div>
 
       <div className="overview-grid">
@@ -177,6 +176,6 @@ export default function Home() {
   </>);
 
   return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && setFocusedPanel(null)}>
-    {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface">{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface">{dashboardSurface("right")}</div></div></div> : <div className="normal-stage">{dashboardSurface("normal")}</div>}
+    {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="left" /></div>{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="right" /></div>{dashboardSurface("right")}</div></div></div> : <div className="normal-stage"><div className="scene-main"><SceneViewport eye="normal" /></div>{dashboardSurface("normal")}</div>}
   </div>;
 }
