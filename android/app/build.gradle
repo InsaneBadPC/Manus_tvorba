@@ -1,7 +1,15 @@
 apply plugin: 'com.android.application'
 
-def buildVersionCode = (project.findProperty("versionCode") ?: "1").toString().toInteger()
-def buildVersionName = (project.findProperty("versionName") ?: "1.0").toString()
+// Every build gets a unique, monotonically increasing versionCode so Android
+// accepts it as an update. Seconds since 2025-01-01 stay below the 2.1e9 limit
+// until 2091 and also work for local builds without CI flags.
+def generatedVersionCode = System.currentTimeMillis().intdiv(1000L) - 1735689600L
+def buildVersionCode = (project.findProperty("versionCode") ?: generatedVersionCode).toString().toInteger()
+def buildVersionName = (project.findProperty("versionName") ?: "1.0.${new Date().format('yyyyMMdd.HHmm')}").toString()
+
+// The release keystore is injected by CI (and only there). Keeping the key
+// stable is what allows Android to install a new APK over the old one.
+def signingStorePath = System.getenv("INSANE_KEYSTORE_PATH")
 
 android {
     namespace = "ai.insane.agentvr"
@@ -19,8 +27,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (signingStorePath) {
+                storeFile file(signingStorePath)
+                storePassword System.getenv("INSANE_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("INSANE_KEY_ALIAS")
+                keyPassword System.getenv("INSANE_KEY_PASSWORD")
+                storeType "PKCS12"
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingStorePath) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
