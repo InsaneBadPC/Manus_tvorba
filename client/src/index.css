@@ -270,3 +270,22 @@ h1 { margin: 0; font-size: clamp(25px, 7vw, 40px); line-height: 1.04; letter-spa
 .vr-eye-surface .environment-grid .panel > :not(.panel-header) { display: none; }
 .vr-eye-surface .closed-panel-bar { display: none; }
 .mode-vr { padding-bottom: 0; }
+
+/* Loaded GLB scene behind the functional VR workspace. */
+.dashboard { position: relative; }
+.scene-backdrop { position: absolute; z-index: 0; inset: 0; grid-column: 1 / -1; grid-row: 1 / -1; overflow: hidden; border-radius: 18px; pointer-events: none; opacity: .82; background: radial-gradient(circle at 50% 55%, rgba(11,93,146,.3), rgba(1,9,21,.9) 72%); }
+.scene-backdrop::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 52%, transparent 28%, rgba(1,7,17,.58) 82%); }
+.scene-viewport { position: absolute; inset: 0; width: 100%; height: 100%; }
+.scene-canvas { display: block; width: 100%; height: 100%; }
+.dashboard > :not(.scene-backdrop) { position: relative; z-index: 1; }
+.vr-eye-surface .scene-backdrop { border-radius: 10px; opacity: .9; }
+.vr-eye-surface .scene-backdrop::after { background: radial-gradient(circle at 50% 48%, transparent 20%, rgba(1,7,17,.68) 78%); }
+EOF
+.vr-eye-surface .panel { background: linear-gradient(160deg, rgba(8,35,65,.78), rgba(3,15,31,.74)); backdrop-filter: blur(2px); }
+.scene-preview { position: relative; width: 100%; height: 92px; overflow: hidden; border: 1px solid rgba(65,205,255,.38); border-radius: 8px; background: #020b18; }
+.scene-preview > span { position: absolute; z-index: 2; left: 6px; bottom: 5px; padding: 2px 5px; border-radius: 4px; background: rgba(1,12,25,.78); color: #9feaff; font-size: 8px; letter-spacing: .08em; }
+.vr-eye-surface .environment-grid { height: 82px; }
+.vr-eye-surface .environment-grid .panel > :not(.panel-header) { display: block; }
+.vr-eye-surface .environment-grid .scene-preview { height: 54px; }
+.vr-eye-surface .environment-grid .environment-copy, .vr-eye-surface .environment-grid .environment-icon, .vr-eye-surface .environment-grid .vr-actions { display: none; }
+.vr-eye-surface .environment-grid .scene-preview + .environment-icon { display: none; }
