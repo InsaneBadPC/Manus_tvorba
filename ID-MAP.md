@@ -51,6 +51,7 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | B32 | Doplnit help do terminálu | `terminal.help` | rychlá vývojářská nápověda |
 | B33 | Otevřít VR scénu | `vr.scene.open` | napojit scene browser / WebXR preview |
 | B34 | Spustit VR build | `vr.build` | napojit Termux agent CLI nebo CI job |
+| B35 | Přepínač zobrazení | `display.vr.toggle` | 2D portrét 9:16 ↔ VR SBS landscape 16:9; při VR se zamkne landscape/fullscreen |
 | C31–C41 | Zavření panelů W01–W11 | `panel.*.close` | lokální layout preference; případně sync uživatele |
 
 Klávesy vysouvané klávesnice mají ID `K{řádek}{sloupec}` a posílají znaky do právě zvoleného chatu nebo Termux inputu. Výřez původní klávesnice je uložen jako `client/public/keyboard-reference.png`; funkční klávesnice je ale vykreslena jako dotykové HTML ovládání, aby skutečně vkládala znaky.
@@ -65,6 +66,7 @@ GitHub Actions po pushi na `main` sestaví APK, aktualizuje release `latest` a n
 - Chatové zprávy, rozepsaný chat, demo terminál, Termux výstup, oba příkazové řádky a zvolená záložka se ukládají odděleně do `localStorage` pod prefixem `agentvr.*`; přepnutí záložky je proto neničí.
 - Centrální Chat a Termux mají vlastní buffer i vlastní rozepsaný příkaz. Demo terminál W09 zůstává oddělený od nativního Termuxu W07.
 - Panel Prostředí je připravený jako VR development context: projekt, větev, scene status, WebXR/hot-reload indikátory a rychlé akce Scéna/Build.
+- Zobrazení se přepíná přes B35: běžný režim je portrétní 9:16; VR režim je landscape stereoskopické SBS se dvěma synchronizovanými 16:9 oky. Pravé oko je pouze vizuální kopie bez dotykových událostí, aby se akce nespouštěly dvakrát.
 - Reálné funkce se mají doplnit přes samostatné adaptery; UI komponenty nemají obsahovat tajné klíče.
 - Pro Android mikrofon použít oprávnění `RECORD_AUDIO` a speech plugin/bridge.
 - Pro websocket použít reconnect, heartbeat a offline frontu.

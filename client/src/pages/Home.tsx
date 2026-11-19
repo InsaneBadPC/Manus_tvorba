@@ -62,6 +62,7 @@ export default function Home() {
   const [termuxCommand, setTermuxCommand] = useStoredState("termux.command", "");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [vrMode, setVrMode] = useStoredState("display.vr", false);
 
   useEffect(() => {
     const timer = window.setInterval(() => setMetrics(m => ({ cpu: Math.max(12, Math.min(82, m.cpu + (Math.random() > .5 ? 3 : -2))), ram: Math.max(30, Math.min(85, m.ram + (Math.random() > .5 ? 1 : -1))), gpu: Math.max(8, Math.min(72, m.gpu + (Math.random() > .5 ? 4 : -3))) })), 2400);
@@ -73,6 +74,12 @@ export default function Home() {
     checkForUpdate().then(info => { if (active) setUpdateInfo(info); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const orientation = window.screen?.orientation as ScreenOrientation & { lock?: (type: string) => Promise<void>; unlock?: () => void } | undefined;
+    if (vrMode) orientation?.lock?.("landscape").catch(() => undefined);
+    else orientation?.unlock?.();
+  }, [vrMode]);
 
   const visibleAgents = useMemo(() => agents.map((agent, index) => ({ ...agent, active: activeAgent === index })), [activeAgent]);
   const togglePanel = (id: string) => setOpenPanels(p => ({ ...p, [id]: !p[id] }));
@@ -113,11 +120,18 @@ export default function Home() {
     workspaceMode === "termux" ? setTermuxCommand(v => v + key) : setDraft(v => v + key);
   };
 
-  return <div className="app-shell" onClick={() => focusedPanel && setFocusedPanel(null)}>
+  const toggleDisplayMode = async () => {
+    const next = !vrMode;
+    setVrMode(next);
+    if (next) await document.documentElement.requestFullscreen?.().catch(() => undefined);
+    else if (document.fullscreenElement) await document.exitFullscreen?.().catch(() => undefined);
+  };
+
+  const dashboardSurface = ( <>
     <header className="topbar">
       <div className="brand-mark"><Sparkles size={22} /><div><strong>Insane AI Agent</strong><span>mobilní pracovní plocha</span></div></div>
       <div className="status-strip"><span className="online-dot" /> Online <span className="muted">•</span> Připraveno {updateInfo?.available && <button {...actionProps("B27", "app.update.available")} className="update-pill" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk); setUpdateBusy(false); }}>{updateBusy ? "Stahuji…" : "Nová APK"}</button>}</div>
-      <button {...actionProps("B05", "navigation.settings") } className="top-icon" onClick={() => setSelectedNav("Nastavení")} aria-label="Nastavení"><Settings size={18} /></button>
+      <button {...actionProps("B05", "navigation.settings") } className="top-icon" onClick={() => setSelectedNav("Nastavení")} aria-label="Nastavení"><Settings size={18} /></button><button {...actionProps("B35", "display.vr.toggle")} className={`display-toggle ${vrMode ? "active" : ""}`} onClick={toggleDisplayMode} aria-label="Přepnout zobrazení">{vrMode ? "2D 9:16" : "VR 16:9"}</button>
     </header>
 
     {updateInfo?.available && <div className="update-banner" role="status"><div><strong>Je dostupná nová verze aplikace</strong><small>Build {updateInfo.run ?? updateInfo.build.slice(0, 8)} z GitHubu</small></div><button {...actionProps("B28", "app.update.install")} className="primary-button" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk); setUpdateBusy(false); }}>{updateBusy ? "Stahuji APK…" : "Aktualizovat"}</button></div>}
@@ -151,5 +165,10 @@ export default function Home() {
     </main>
 
     <nav className="bottom-nav" aria-label="Hlavní navigace"><button {...actionProps("B17", "navigation.projects")} className={selectedNav === "Projekty" ? "active" : ""} onClick={() => setSelectedNav("Projekty")}><Folder size={19} /><span>Projekty</span></button><button {...actionProps("B18", "navigation.agents")} className={selectedNav === "Agenti" ? "active" : ""} onClick={() => setSelectedNav("Agenti")}><Bot size={19} /><span>Agenti</span></button><button {...actionProps("B19", "navigation.chat")} className={selectedNav === "Chat" ? "active" : ""} onClick={() => setSelectedNav("Chat")}><MessageCircle size={19} /><span>Chat</span></button><button {...actionProps("B20", "navigation.diff")} className={selectedNav === "Diffy" ? "active" : ""} onClick={() => setSelectedNav("Diffy")}><Code2 size={19} /><span>Diffy</span></button><button {...actionProps("B21", "navigation.terminal")} className={selectedNav === "Terminál" ? "active" : ""} onClick={() => setSelectedNav("Terminál")}><Command size={19} /><span>Terminál</span></button><button {...actionProps("B22", "navigation.environment")} className={selectedNav === "Prostředí" ? "active" : ""} onClick={() => setSelectedNav("Prostředí")}><Monitor size={19} /><span>Prostředí</span></button></nav>
+
+  </>);
+
+  return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && setFocusedPanel(null)}>
+    {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left">{dashboardSurface}</div><div className="vr-eye vr-eye-right" aria-hidden="true">{dashboardSurface}</div></div> : <div className="normal-stage">{dashboardSurface}</div>}
   </div>;
 }

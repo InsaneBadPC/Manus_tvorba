@@ -175,3 +175,28 @@ h1 { margin: 0; font-size: clamp(25px, 7vw, 40px); line-height: 1.04; letter-spa
 .vr-badge.ready { border-color: #59e9ae; color: #88f3bf; background: rgba(45,180,118,.12); }
 .vr-actions { display: flex; gap: 5px; width: 100%; padding-left: 49px; }
 .vr-actions button { padding: 6px 9px; border: 1px solid rgba(72,186,234,.38); border-radius: 7px; background: rgba(10,49,83,.7); color: #9ddff2; font-size: 10px; cursor: pointer; }
+
+
+/* Display modes: normal phone portrait 9:16 and VR side-by-side 16:9 eyes. */
+.app-shell { display: flex; justify-content: center; min-height: 100vh; overflow: auto; background: #02050c; }
+.mode-normal .normal-stage { position: relative; width: min(100vw, calc(100vh * 9 / 16), 430px); height: min(100vh, calc(100vw * 16 / 9), 764px); aspect-ratio: 9 / 16; overflow: auto; background: linear-gradient(160deg, rgba(3,12,28,.96), rgba(3,7,16,.98)); }
+.mode-vr { align-items: center; }
+.stereo-stage { position: relative; display: grid; grid-template-columns: repeat(2, 1fr); width: min(100vw, calc(100vh * 32 / 9)); height: min(100vh, calc(100vw * 9 / 32)); aspect-ratio: 32 / 9; overflow: hidden; background: #000; border: 1px solid rgba(68,214,255,.55); box-shadow: 0 0 38px rgba(0,198,255,.35); }
+.vr-eye { position: relative; min-width: 0; height: 100%; overflow: hidden; background: linear-gradient(160deg, rgba(3,12,28,.96), rgba(3,7,16,.98)); }
+.vr-eye-left { border-right: 1px solid rgba(91,225,255,.55); }
+.vr-eye-right { border-left: 1px solid rgba(91,225,255,.22); pointer-events: none; }
+.vr-eye > .topbar { position: absolute; top: 0; right: 0; left: 0; min-height: 7%; padding: 1.2% 2%; }
+.vr-eye > .origin-strip { position: absolute; top: 7%; right: 0; left: 0; padding: 1% 2% 0; }
+.vr-eye > .dashboard { position: absolute; top: 15%; right: 0; bottom: 9%; left: 0; width: 100%; overflow: auto; padding: 2% 2%; }
+.vr-eye > .bottom-nav { position: absolute; right: 0; bottom: 0; left: 0; height: 9%; padding: 1% 2%; }
+.vr-eye > .update-banner { position: absolute; z-index: 25; top: 11%; right: 2%; left: 2%; margin: 0; }
+.vr-eye .panel-focused { position: absolute; z-index: 80; inset: 5% 2%; max-height: 90%; }
+.vr-eye .keyboard-dock { position: absolute; z-index: 95; right: 0; bottom: 0; left: 0; }
+.vr-eye-right .display-toggle, .vr-eye-right button, .vr-eye-right input { pointer-events: none; }
+.mode-vr .dashboard { max-width: none; }
+.mode-vr .overview-grid { grid-template-columns: repeat(3, 1fr); }
+.mode-vr .split-grid, .mode-vr .environment-grid { grid-template-columns: repeat(2, 1fr); }
+.display-toggle { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 9px; border: 1px solid rgba(76,192,232,.48); border-radius: 9px; background: rgba(10,50,83,.72); color: #9bdff1; font-size: 10px; white-space: nowrap; cursor: pointer; }
+.display-toggle.active { border-color: #5fe7ff; background: #1a8cbd; color: #effcff; box-shadow: 0 0 12px rgba(55,218,255,.42); }
+@media (orientation: portrait) and (max-width: 600px) { .mode-vr::before { content: "Otoč telefon naležato pro VR SBS"; position: fixed; z-index: 120; top: 6px; right: 6px; left: 6px; padding: 7px; border: 1px solid #53dcff; border-radius: 8px; background: rgba(1,18,35,.94); color: #b7f3ff; text-align: center; font-size: 10px; pointer-events: none; } }
+@media (max-aspect-ratio: 16 / 10) and (orientation: landscape) { .mode-vr .stereo-stage { width: 100vw; height: 28.125vw; } }
