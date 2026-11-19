@@ -196,6 +196,7 @@ export default function Home() {
       return { timestamp: Number(timestamp), size: Number(size), path, name: path.split("/").pop() || path };
     }).filter((session): session is AgentSession => Boolean(session && Number.isFinite(session.timestamp) && Number.isFinite(session.size)));
     setAgentSessions(parsed);
+    setSessionCount(parsed.length);
     setSessionsLoaded(true);
     setSessionsBusy(false);
     addWorkspaceEvent(`Historie sessions: načteno ${parsed.length} souborů z Termuxu.`);
