@@ -7,14 +7,14 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | Stav | ID | Položka | Očekávaná funkce |
 |---|---|---|---|
 | OK | W01 | AI Agenti v akci | Zobrazuje stav aktivního agenta a krátkou informaci o jeho práci; klepnutí otevře detail panelu. |
-| OK | W02 | Průběh úkolů | Zobrazuje graf průběhu a zatížení úloh; klepnutí otevře detail. |
+| OK | W02 | Průběh úkolů | Zobrazuje skutečné runtime události a stav spuštěných úloh; klepnutí otevře detail. |
 | OK | W03 | Aktivní úkoly | Zobrazuje seznam aktivních úkolů s indikátory stavu. |
 | OK | W04 | Využití systému | Zobrazuje CPU, RAM a GPU v kruhových ukazatelích. |
 | OK | W05 | Tok práce agentů | Zobrazuje síťový tok mezi vstupem, agentem/orchestrátorem a výstupem. |
 | OK | W06 | AGENTI & SESSIONS | Zobrazuje agenty a relace; umožňuje výběr agenta, vytvoření relace a historii. |
 | OK | W07 | Chat & Stream | Zobrazuje chat/stream, nástroje, Git, soubory, hlasový vstup, textové pole a odeslání. |
 | OK | W08 | CODE DIFF | Zobrazuje rozdíly v kódu a umožňuje otevřít soubor. |
-| OK | W09 | TERMINÁL | Zobrazuje bezpečný demo shell s příkazy, vyčištěním a nápovědou. |
+| OK | W09 | TERMINÁL | Spouští příkazy přes Termux bridge, zobrazuje stdout/stderr a umožňuje vyčištění/nápovědu. |
 | OK | W10 | 3D prostředí | Zobrazuje GLB scénu, stav prostředí, otevření scény a build akci. |
 | OK | W11 | Hlasové ovládání | Zobrazuje hlasové ovládání a přepíná stav poslechu. |
 
@@ -34,9 +34,9 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | OK | B10 | Freebuff CLI / třetí agent | Vybere třetího agenta podle legendy a aktuálního seznamu. |
 | OK | B11 | Historie sessions | Otevře/aktivuje historii předchozích relací. |
 | OK | B12 | Nástroje | Přepíná nabídku nástrojů chatu. |
-| OK | B13 | Git | Přidá do chatu událost o stavu pracovního stromu. |
-| OK | B14 | Soubory | Přidá do chatu událost o otevřeném workspace. |
-| OK | B15 | Terminál — kontext | Spustí demo příkaz v terminálu. |
+| OK | B13 | Git | Spustí skutečné `git status --short --branch` přes Termux a přidá výstup. |
+| OK | B14 | Soubory | Spustí skutečný výpis souborů workspace přes Termux. |
+| OK | B15 | Terminál — kontext | Spustí zadaný skutečný příkaz přes Termux bridge. |
 | OK | B16 | Odeslat zprávu | Odešle text z chatového vstupu a přidá odpověď agenta. |
 | OK | B17 | Projekty — spodní lišta | Přepne spodní navigaci na Projekty. |
 | OK | B18 | Agenti — spodní lišta | Přepne spodní navigaci na Agenti. |
@@ -53,8 +53,8 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | OK | C02 | Wi-Fi stav | Zobrazuje stav bezdrátového připojení. |
 | OK | C03 | Monitor / displej | Zobrazuje stav připojeného displeje/počítače. |
 | OK | C04 | Síla signálu | Zobrazuje indikaci síly signálu. |
-| OK | C05 | Výběr streamu | Přepíná výběr aktuálního chatu/streamu. |
-| OK | C06 | Hlasový vstup / mikrofon | Přepíná režim poslechu. |
+| OK | C05 | Výběr streamu | Přepíná skutečnou nabídku Nástroje/Akce chatu. |
+| OK | C06 | Hlasový vstup / mikrofon | Spouští/zastavuje skutečné Speech Recognition API. |
 | OK | C07 | Textové vstupní pole | Přijímá text chatové zprávy. |
 | OK | C08 | Shell / Bash výběr | Zobrazuje a umožňuje volbu shellu terminálu. |
 | OK | C09 | Čas a datum | Zobrazuje aktuální čas a datum pracovního prostoru. |
@@ -72,8 +72,8 @@ Položka je `OK` pouze po ověření existence ID, správného `data-hook`, oče
 
 ## Výsledek ověření
 
-Všechny položky z legendy jsou po jednotlivých testech označené jako `OK`. Ověřeno bylo 39/39 ID: 11 panelů W01–W11, 22 tlačítek B01–B22 a 16 ovládacích/stavových prvků C01–C16.
+Všech 39 ID je přítomných a interakce webového prototypu byly ověřeny; nativní Android/Termux položky jsou v samostatném checklistu vedené jako ČÁSTEČNĚ, dokud neproběhne test instalované APK. Ověřeno bylo 39/39 ID: 11 panelů W01–W11, 22 tlačítek B01–B22 a 16 ovládacích/stavových prvků C01–C16.
 
-Během kontroly byly opraveny tyto nesoulady: B10 nyní používá správný formát ID pro Freebuff CLI; B11 přidává viditelnou událost historie sessions; B02–B05 mají viditelný aktivní stav; C01–C04 byly doplněny do stavového pásu; C08 je skutečný přepínač Bash/Sh a příkazové pole terminálu používá samostatné C21; zavírací prvky C11–C16 nyní zavírají správná okna W01–W05 a W08.
+Během kontroly byly opraveny tyto nesoulady: odstraněny statické demo odpovědi, náhodné metriky a hardcoded čas/signál/počasí; B10 nyní používá správný formát ID pro Freebuff CLI; B11 přidává viditelnou událost historie sessions; B02–B05 mají viditelný aktivní stav; C01–C04 byly doplněny do stavového pásu; C08 je skutečný přepínač Bash/Sh a příkazové pole terminálu používá samostatné C21; zavírací prvky C11–C16 nyní zavírají správná okna W01–W05 a W08.
 
 Testovací viewport pro úplnou legendu byl 430×764 px, aby byly viditelné všechny prvky 9:16. Na velmi úzkém viewportu 390 px aplikace záměrně skrývá část horní navigace kvůli použitelnosti; prvky zůstávají v DOM a jsou dostupné v plném 9:16 rozložení.
