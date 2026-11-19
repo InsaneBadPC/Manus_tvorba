@@ -134,6 +134,13 @@ export default function Home() {
     else if (document.fullscreenElement) await document.exitFullscreen?.().catch(() => undefined);
   };
 
+  const handleScenePartClick = (part: string) => {
+    if (/^W\d{2}$/.test(part)) { setFocusedPanel(part); return; }
+    if (part.includes("navigace_horní")) { setSelectedNav("Přehled"); return; }
+    if (part.includes("navigace_spodní")) { setSelectedNav("Prostředí"); return; }
+    if (part === "stav") { setSelectedNav("Nastavení"); }
+  };
+
   const dashboardSurface = (eye: "normal" | "left" | "right" = "normal") => ( <>
     <header className="topbar">
       <div className="brand-mark"><Sparkles size={22} /><div><strong>Insane AI Agent</strong><span>mobilní pracovní plocha</span></div></div>
@@ -175,7 +182,7 @@ export default function Home() {
 
   </>);
 
-  return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && setFocusedPanel(null)}>
-    {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="left" /></div>{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="right" /></div>{dashboardSurface("right")}</div></div></div> : <div className="normal-stage"><div className="scene-main"><SceneViewport eye="normal" /></div>{dashboardSurface("normal")}</div>}
+  return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && !vrMode && setFocusedPanel(null)}>
+    {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="left" onPartClick={handleScenePartClick} /></div>{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="right" /></div>{dashboardSurface("right")}</div></div></div> : <div className="normal-stage"><div className="scene-main"><SceneViewport eye="normal" onPartClick={handleScenePartClick} /></div>{dashboardSurface("normal")}</div>}
   </div>;
 }

@@ -304,3 +304,16 @@ EOF
 .vr-eye-surface > .origin-strip, .normal-stage > .origin-strip { z-index: 11; }
 .vr-eye-surface > .dashboard, .normal-stage > .dashboard { z-index: 10; }
 .vr-eye-surface > .bottom-nav, .normal-stage > .bottom-nav { z-index: 13; }
+
+/* In VR the GLB export is the visual source of truth. React panels become invisible interaction/detail layers. */
+.mode-vr .vr-eye-surface > .origin-strip, .mode-vr .vr-eye-surface > .bottom-nav { opacity: 0; pointer-events: none; }
+.mode-vr .vr-eye-surface > .topbar { opacity: 0; pointer-events: none; }
+.mode-vr .vr-eye-surface > .topbar .display-toggle { opacity: 1; pointer-events: auto; position: fixed; top: 8px; right: 10px; }
+.mode-vr .vr-eye-surface > .dashboard > :not(.scene-backdrop) { opacity: 0; pointer-events: none; }
+.mode-vr .vr-eye-surface > .dashboard .panel-focused { opacity: 1; pointer-events: auto; }
+.mode-vr .vr-eye-surface > .dashboard .panel-focused .icon-button, .mode-vr .vr-eye-surface > .dashboard .panel-focused button, .mode-vr .vr-eye-surface > .dashboard .panel-focused input { pointer-events: auto; }
+.mode-vr .vr-eye-surface > .dashboard { pointer-events: none; }
+.mode-vr .vr-eye-surface > .dashboard .panel-focused { pointer-events: auto; }
+.mode-vr .vr-eye-surface > .scene-main { pointer-events: auto; }
+.mode-vr .vr-eye-right .scene-main { pointer-events: none; }
+.mode-vr .vr-eye-surface > .dashboard > :has(.panel-focused) { opacity: 1; pointer-events: auto; }

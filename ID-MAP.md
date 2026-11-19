@@ -1,8 +1,11 @@
 
+## 3D model jako zdroj UI ve VR
 
-## 3D scéna
+GLB export je hlavní vizuální zdroj VR scény. Obsahuje místnost, pódium, město, textury a 3D UI panely. React/CSS dashboard se v režimu VR vizuálně nepřekresluje přes model; slouží jen jako funkční detail po výběru 3D panelu.
 
-- `client/public/models/insane-agent-scene.glb` je runtime kopie modelu nahraného v kořeni repozitáře. Načítá ji `SceneViewport` přes Three.js `GLTFLoader`.
-- V režimu VR se renderují dvě instance WebGL scény (`left` a `right`) s posunem kamery pro stereoskopický efekt. Pravé oko je pouze vizuální kopie a nereaguje na dotyk.
-- `B33` (`vr.scene.open`) otevře panel `W10` v režimu detailu s náhledem skutečného GLB modelu.
-- Pokud bude model nahrazen novým exportem, zachovej cestu `/models/insane-agent-scene.glb`, nebo uprav konstantu v `client/src/components/SceneViewport.tsx`.
+- `part_W01` až `part_W11` — skutečné 3D panely odpovídající ID W01–W11.
+- `part_navigace_horní` — horní 3D navigace.
+- `part_navigace_spodní` — spodní 3D navigace.
+- `part_stav` — 3D stavový panel systému.
+- `SceneViewport` používá Three.js `Raycaster`; kliknutí na mesh hledá nejbližšího rodiče `part_*` a předává jeho ID do Reactu.
+- Kliknutí na `part_W07` otevře funkční detail Chat & Stream, zatímco model zůstává jediným zdrojem vizuální kompozice.
