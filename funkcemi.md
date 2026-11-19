@@ -27,7 +27,7 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | OK | B03 | Agenti — horní lišta | Přepne navigaci na Agenti. |
 | OK | B04 | Terminál — horní lišta | Přepne navigaci na Terminál. |
 | OK | B05 | Nastavení — horní lišta | Přepne navigaci na Nastavení. |
-| OK | B06 | Nová relace (+) | Zvýší počet aktivních relací. |
+| OK | B06 | Nová relace (+) | Vytvoří skutečný session záznam v `$HOME/.agentvr/sessions` a obnoví historii. |
 | OK | B07 | Kilo Code | Vybere agenta Kilo Code. |
 | OK | B08 | Antigravity | Vybere agenta Antigravity. |
 | OK | B09 | Freebuff CLI | Vybere agenta Freebuff CLI. |

@@ -5,14 +5,14 @@ Pravidlo: `OK` lze použít jen tehdy, když funkce používá skutečný Androi
 | Stav | Oblast | Co musí být skutečně ověřeno |
 |---|---|---|
 | ČÁSTEČNĚ | Termux bridge | APK odešle příkaz přes RUN_COMMAND do nainstalovaného Termuxu a zobrazí stdout/stderr/exit code. |
-| ČÁSTEČNĚ | AI CLI agenti | Kilo Code, Antigravity a Freebuff CLI mají konfigurovatelný skutečný příkaz a jeho výstup se vrací do UI; UI navíc skenuje session/conversation soubory v HOME Termuxu. |
+| ČÁSTEČNĚ | AI CLI agenti | Kilo Code, Antigravity a Freebuff CLI se před použitím ověřují přes command -v; dostupné CLI se spouštějí skutečně a UI skenuje session/conversation soubory v HOME Termuxu. |
 | ČÁSTEČNĚ | Spolupráce agentů | Jeden úkol lze spustit u více skutečně nakonfigurovaných CLI agentů a výsledky se sloučí. |
 | OK (web) | Graf práce agentů | Graf zobrazuje skutečný běh/stav úloh, ne statickou dekoraci. |
 | OK (bridge + fallback) | Baterie | Hodnota pochází z Android BatteryManager nebo dostupného systémového API. |
 | ČÁSTEČNĚ | Wi-Fi/signál | Hodnota pochází z Android Connectivity/Wi-Fi API; při nedostupnosti je jasně uvedeno N/A. |
 | OK (bridge + fallback) | Rychlost sítě | Hodnota pochází z Android linkDownstreamBandwidth nebo měřeného přenosu. |
 | ČÁSTEČNĚ | CPU/RAM | Hodnota pochází ze systémového bridge, nikoli z náhodného generátoru. |
-| ČÁSTEČNĚ | Správce souborů a session historie | Výpis, otevření a práce se soubory používá skutečný Termux/filesystem bridge. |
+| ČÁSTEČNĚ | Správce souborů a session historie | Výpis, otevření a práce se soubory používá skutečný Termux/filesystem bridge; workspace nyní načítá seznam a náhled souborů. |
 | OK (web) | Klávesnice | Dotyková klávesnice skutečně zapisuje do aktuálního vstupu a odesílá příkaz/zprávu. |
 | ČÁSTEČNĚ | Hlasové ovládání | Používá skutečné Speech Recognition API nebo Android SpeechRecognizer. |
 | ČÁSTEČNĚ | Automatická aktualizace APK | Aplikace načte latest.json, porovná build SHA, stáhne APK a předá ho systémovému instalátoru. |
@@ -31,3 +31,7 @@ Položka se označí `OK` až po úspěšném testu v odpovídajícím runtime. 
 - `pnpm check` a `pnpm build` prošly.
 
 - Doplněno tlačítko B11 pro skutečné vyhledání session/conversation/JSONL souborů v HOME Termuxu, načtení metadat a otevření posledních 120 řádků session.
+
+- Nová relace už není lokální čítač: zapisuje skutečný JSON záznam do `$HOME/.agentvr/sessions`.
+- Stav Kilo Code, Antigravity a Freebuff CLI se zjišťuje přes `command -v`; spolupráce nespouští nedostupné agenty.
+- Soubory workspace se vypisují přes Termux, lze otevřít jejich skutečný obsah přes `sed`.
