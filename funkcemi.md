@@ -66,6 +66,10 @@ Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpov
 | OK | C15 | Zavřít W05 | Zavře panel W05 a nabídne jeho znovuotevření. |
 | OK | C16 | Zavřít W08 | Zavře panel W08 a nabídne jeho znovuotevření. |
 
+## Projektový workspace
+
+Projekt má vlastní složku vybranou přes Android systémový výběr složek, uloženou `content://` URI a odpovídající cestu ve sdíleném úložišti. Agenti jsou přiřazováni na projektové úrovni; jejich chat, sessions, soubory a úkoly nesmí používat jiný projekt.
+
 ## Ověřovací pravidla
 
 Položka je `OK` pouze po ověření existence ID, správného `data-hook`, očekávané změny UI/stavu po interakci a návratu do použitelného stavu. Prvky, které jsou ve zdrojové legendě pouze indikátory, se ověřují kontrolou zobrazené hodnoty a významu; není u nich vynucována klikací akce.

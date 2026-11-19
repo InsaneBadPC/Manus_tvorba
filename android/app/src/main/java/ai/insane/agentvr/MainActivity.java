@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(TermuxBridgePlugin.class);
         registerPlugin(AppUpdateBridgePlugin.class);
         registerPlugin(DeviceStatusBridgePlugin.class);
+        registerPlugin(ProjectStoragePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

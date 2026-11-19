@@ -35,3 +35,10 @@ Položka se označí `OK` až po úspěšném testu v odpovídajícím runtime. 
 - Nová relace už není lokální čítač: zapisuje skutečný JSON záznam do `$HOME/.agentvr/sessions`.
 - Stav Kilo Code, Antigravity a Freebuff CLI se zjišťuje přes `command -v`; spolupráce nespouští nedostupné agenty.
 - Soubory workspace se vypisují přes Termux, lze otevřít jejich skutečný obsah přes `sed`.
+
+## Projektový workspace model
+
+- ČÁSTEČNĚ — Projekt má vlastní vybranou složku ve sdíleném úložišti zařízení, nikoli privátní Termux HOME.
+- ČÁSTEČNĚ — Android `ACTION_OPEN_DOCUMENT_TREE` vrací trvalé `content://` oprávnění a Termux cestu `/storage/emulated/0/...`.
+- ČÁSTEČNĚ — Agenti se přidávají/odebírají na úrovni konkrétního projektu.
+- ČÁSTEČNĚ — Chat, terminál, Git, soubory a sessions používají cestu aktivního projektu.

@@ -9,11 +9,13 @@ import { isTermuxBridgeAvailable, runTermuxCommand } from "@/lib/termux";
 import { checkForUpdate, installUpdate, type UpdateInfo } from "@/lib/app-update";
 import { readDeviceStatus, type DeviceStatus } from "@/lib/device-status";
 import { SceneViewport } from "@/components/SceneViewport";
+import { pickProjectDirectory } from "@/lib/project-storage";
 
 type Agent = { name: string; icon: string; cli: string; status: "ready" | "busy" | "offline"; color: string };
 type Message = { from: "user" | "agent"; text: string; time: string };
 type AgentSession = { timestamp: number; size: number; path: string; name: string };
 type WorkspaceFile = { path: string; size: number };
+type Project = { id: string; name: string; uri: string; termuxPath: string; agentClis: string[]; createdAt: string };
 
 const agents: Agent[] = [
   { name: "Kilo Code", icon: "K", cli: "kilo", status: "ready", color: "#8aa6ff" },
@@ -53,6 +55,13 @@ function useStoredState<T>(key: string, fallback: T) {
 
 export default function Home() {
   const [activeAgent, setActiveAgent] = useState(0);
+  const [projects, setProjects] = useStoredState<Project[]>("projects", []);
+  const [activeProjectId, setActiveProjectId] = useStoredState<string | null>("active-project", null);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDirectory, setProjectDirectory] = useState<{ uri: string; termuxPath: string; displayName: string } | null>(null);
+  const activeProject = projects.find(project => project.id === activeProjectId) ?? null;
+  const projectCwd = activeProject?.termuxPath ?? "~";
   const [selectedNav, setSelectedNav] = useStoredState("selected-nav", "Přehled");
   const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({ W01: true, W02: true, W03: true, W04: true, W05: true, W06: true, W07: true, W08: true, W09: true, W10: true, W11: true });
   const [messages, setMessages] = useStoredState<Message[]>("chat.messages", [{ from: "agent", text: "Systém je připravený. Vyber agenta nebo zadej úkol.", time: "12:00" }]);
@@ -132,22 +141,43 @@ export default function Home() {
     else orientation?.unlock?.();
   }, [vrMode]);
 
-  const visibleAgents = useMemo(() => agents.map((agent, index) => ({ ...agent, status: agentAvailability[agent.cli] ?? "offline", active: activeAgent === index })), [activeAgent, agentAvailability]);
+  const visibleAgents = useMemo(() => agents.filter(agent => activeProject?.agentClis.includes(agent.cli)).map((agent, index) => ({ ...agent, status: agentAvailability[agent.cli] ?? "offline", active: activeAgent === index })), [activeAgent, activeProject, agentAvailability]);
   const togglePanel = (id: string) => setOpenPanels(p => ({ ...p, [id]: !p[id] }));
 
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\"'\"'")}'`;
+
+  const chooseProjectDirectory = async () => {
+    try { setProjectDirectory(await pickProjectDirectory()); }
+    catch (error) { addWorkspaceEvent(error instanceof Error ? error.message : "Výběr složky selhal."); }
+  };
+
+  const createProject = async () => {
+    const name = projectName.trim();
+    if (!name || !projectDirectory) { addWorkspaceEvent("Projekt: zadej název a vyber skutečnou složku zařízení."); return; }
+    const result = await runTermuxCommand(`test -d ${shellQuote(projectDirectory.termuxPath)} && mkdir -p ${shellQuote(`${projectDirectory.termuxPath}/.agentvr`)} && printf '%s\\n' ${shellQuote(JSON.stringify({ name, createdAt: new Date().toISOString() }))} > ${shellQuote(`${projectDirectory.termuxPath}/.agentvr/project.json`)}`);
+    if (!result.ok) { addWorkspaceEvent(`Projekt nelze připravit v Termuxu: ${result.stderr ?? result.reason ?? "příkaz selhal"}`); return; }
+    const project: Project = { id: crypto.randomUUID(), name, uri: projectDirectory.uri, termuxPath: projectDirectory.termuxPath, agentClis: [], createdAt: new Date().toISOString() };
+    setProjects(current => [...current, project]); setActiveProjectId(project.id); setProjectName(""); setProjectDirectory(null); setProjectDialogOpen(false); setActiveAgent(0);
+  };
+
+  const toggleProjectAgent = (cli: string) => {
+    if (!activeProject) return;
+    setProjects(current => current.map(project => project.id === activeProject.id ? { ...project, agentClis: project.agentClis.includes(cli) ? project.agentClis.filter(item => item !== cli) : [...project.agentClis, cli] } : project));
+  };
 
   const sendMessage = async () => {
     const text = draft.trim(); if (!text) return;
     const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setMessages(m => [...m, { from: "user", text, time: now }]);
     setDraft("");
-    const agent = agents[activeAgent];
+    if (!activeProject) { setMessages(m => [...m, { from: "agent", text: "Nejdřív vytvoř nebo vyber projekt se skutečnou složkou zařízení.", time: now }]); return; }
+    const agent = visibleAgents[activeAgent];
+    if (!agent) { setMessages(m => [...m, { from: "agent", text: "V aktivním projektu není přiřazený žádný CLI agent.", time: now }]); return; }
     if (agentAvailability[agent.cli] !== "ready") {
       setMessages(m => [...m, { from: "agent", text: `CLI ${agent.cli} není v Termuxu dostupné. Nainstaluj ho nebo nastav jeho příkaz v Termuxu.`, time: now }]);
       return;
     }
-    const result = await runTermuxCommand(`printf '%s\n' ${shellQuote(text)} | ${agent.cli}`, "~/agentvr");
+    const result = await runTermuxCommand(`printf '%s\n' ${shellQuote(text)} | ${agent.cli}`, projectCwd);
     const output = result.ok ? (result.stdout || "(CLI nevrátil výstup)") : `CLI ${agent.cli}: ${result.stderr ?? result.reason ?? "příkaz selhal"}`;
     setMessages(m => [...m, { from: "agent", text: output, time: now }]);
   };
@@ -161,27 +191,30 @@ export default function Home() {
   const runCommand = async () => {
     const cmd = command.trim(); if (!cmd) return;
     setTerminal(lines => [...lines, `${shell} $ ${cmd}`]); setCommand("");
-    const result = await runTermuxCommand(cmd, "~/agentvr");
+    const result = await runTermuxCommand(cmd, projectCwd);
     setTerminal(lines => [...lines, result.ok ? (result.stdout || "(bez výstupu)") : `bridge: ${result.stderr ?? result.reason ?? "příkaz selhal"}`]);
   };
 
   const runWorkspaceCommand = async (label: string, cmd: string) => {
-    const result = await runTermuxCommand(cmd, "~/agentvr");
+    if (!activeProject) { addWorkspaceEvent(`${label}: nejdřív vyber projekt.`); return; }
+    const result = await runTermuxCommand(cmd, projectCwd);
     addWorkspaceEvent(`${label}: ${result.ok ? result.stdout || "(bez výstupu)" : result.stderr ?? result.reason ?? "příkaz selhal"}`);
   };
 
   const runCollaborativeTask = async () => {
+    if (!activeProject) { addWorkspaceEvent("Spolupráce agentů: nejdřív vyber projekt."); return; }
     const task = draft.trim() || "Analyzuj aktuální projekt a navrhni další vývojový krok.";
     const available = agents.filter(agent => agentAvailability[agent.cli] === "ready");
     if (!available.length) { addWorkspaceEvent("Spolupráce agentů: v Termuxu není dostupný žádný nakonfigurovaný CLI agent."); return; }
-    const results = await Promise.all(available.map(agent => runTermuxCommand(`printf '%s\n' ${shellQuote(task)} | ${agent.cli}`, "~/agentvr")));
+    const results = await Promise.all(available.map(agent => runTermuxCommand(`printf '%s\n' ${shellQuote(task)} | ${agent.cli}`, projectCwd)));
     results.forEach((result, index) => addWorkspaceEvent(`${available[index].name}: ${result.ok ? result.stdout || "(bez výstupu)" : result.stderr ?? result.reason ?? "příkaz selhal"}`));
   };
 
   const loadAgentSessions = async () => {
+    if (!activeProject) { addWorkspaceEvent("Historie sessions: nejdřív vyber projekt."); return; }
     setSessionsBusy(true);
-    const discovery = "find \"$HOME\" -type f \( -iname '*session*' -o -iname '*conversation*' -o -iname '*.jsonl' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -printf '%T@\\t%s\\t%p\\n' 2>/dev/null | sort -rn | head -200";
-    const result = await runTermuxCommand(discovery);
+    const discovery = "find . -type f \( -iname '*session*' -o -iname '*conversation*' -o -iname '*.jsonl' \) -not -path '*/node_modules/*' -not -path '*/.git/*' -printf '%T@\\t%s\\t%p\\n' 2>/dev/null | sort -rn | head -200";
+    const result = await runTermuxCommand(discovery, projectCwd);
     if (!result.ok) {
       setAgentSessions([]);
       addWorkspaceEvent(`Historie sessions: ${result.stderr ?? result.reason ?? "Termux bridge není dostupný"}`);
@@ -204,14 +237,16 @@ export default function Home() {
 
   const openAgentSession = async (session: AgentSession) => {
     setSelectedSession(session);
-    const result = await runTermuxCommand(`tail -n 120 -- ${shellQuote(session.path)}`);
+    const result = await runTermuxCommand(`tail -n 120 -- ${shellQuote(session.path)}`, projectCwd);
     setSessionContent(result.ok ? (result.stdout || "(session je prázdná)") : `Nelze načíst session: ${result.stderr ?? result.reason ?? "příkaz selhal"}`);
   };
 
   const createWorkspaceSession = async () => {
-    const agent = agents[activeAgent];
-    const command = `mkdir -p "$HOME/.agentvr/sessions" && file="$HOME/.agentvr/sessions/session-$(date +%Y%m%d-%H%M%S).json" && printf '{"agent":"%s","cli":"%s","created":"%s"}\\n' ${shellQuote(agent.name)} ${shellQuote(agent.cli)} "$(date -Iseconds)" > "$file" && printf '%s' "$file"`;
-    const result = await runTermuxCommand(command);
+    if (!activeProject) { addWorkspaceEvent("Nová relace: nejdřív vyber projekt."); return; }
+    const agent = visibleAgents[activeAgent];
+    if (!agent) { addWorkspaceEvent("Nová relace: aktivní projekt nemá přiřazeného CLI agenta."); return; }
+    const command = `mkdir -p .agentvr/sessions && file=".agentvr/sessions/session-$(date +%Y%m%d-%H%M%S).json" && printf '{"agent":"%s","cli":"%s","created":"%s"}\\n' ${shellQuote(agent.name)} ${shellQuote(agent.cli)} "$(date -Iseconds)" > "$file" && printf '%s' "$file"`;
+    const result = await runTermuxCommand(command, projectCwd);
     if (!result.ok) { addWorkspaceEvent(`Nová relace: ${result.stderr ?? result.reason ?? "Termux bridge není dostupný"}`); return; }
     setSessionCount(count => count + 1);
     addWorkspaceEvent(`Nová skutečná relace zapsána: ${result.stdout.trim()}`);
@@ -219,16 +254,17 @@ export default function Home() {
   };
 
   const loadWorkspaceFiles = async () => {
+    if (!activeProject) { addWorkspaceEvent("Soubory: nejdřív vyber projekt."); return; }
     setFilesBusy(true);
-    const result = await runTermuxCommand("find . -maxdepth 3 -type f -not -path './.git/*' -not -path './node_modules/*' -printf '%s\\t%p\\n' 2>/dev/null | sort -k2 | head -200", "~/agentvr");
+    const result = await runTermuxCommand("find . -maxdepth 3 -type f -not -path './.git/*' -not -path './node_modules/*' -printf '%s\\t%p\\n' 2>/dev/null | sort -k2 | head -200", projectCwd);
     if (!result.ok) { addWorkspaceEvent(`Soubory: ${result.stderr ?? result.reason ?? "Termux bridge není dostupný"}`); setFilesBusy(false); return; }
     const files = result.stdout.split("\\n").map(line => { const [size, ...parts] = line.split("\\t"); const path = parts.join("\\t").trim(); return path && Number.isFinite(Number(size)) ? { path, size: Number(size) } : null; }).filter((file): file is WorkspaceFile => Boolean(file));
-    setWorkspaceFiles(files); setFilesBusy(false); addWorkspaceEvent(`Soubory: načteno ${files.length} položek z ~/agentvr.`);
+    setWorkspaceFiles(files); setFilesBusy(false); addWorkspaceEvent(`Soubory: načteno ${files.length} položek z ${projectCwd}.`);
   };
 
   const openWorkspaceFile = async (file: WorkspaceFile) => {
     setSelectedFile(file.path);
-    const result = await runTermuxCommand(`sed -n '1,220p' -- ${shellQuote(file.path)}`, "~/agentvr");
+    const result = await runTermuxCommand(`sed -n '1,220p' -- ${shellQuote(file.path)}`, projectCwd);
     setFileContent(result.ok ? (result.stdout || "(soubor je prázdný)") : `Nelze otevřít soubor: ${result.stderr ?? result.reason ?? "příkaz selhal"}`);
   };
 
@@ -237,7 +273,7 @@ export default function Home() {
     setTermuxLines(lines => [...lines, `$ ${cmd}`]);
     setTermuxCommand("");
     try {
-      const result = await runTermuxCommand(cmd);
+      const result = await runTermuxCommand(cmd, projectCwd);
       setTermuxLines(lines => [...lines, result.ok ? result.stdout || "(bez výstupu)" : `bridge: ${result.stderr ?? result.reason ?? "chyba"}`]);
     } catch (error) {
       setTermuxLines(lines => [...lines, `bridge: ${error instanceof Error ? error.message : "Termux command failed"}`]);
@@ -288,7 +324,10 @@ export default function Home() {
     <div className="origin-strip"><div className="context-card"><span className="context-label">ČAS</span><strong id="C09" data-element-id="C09" data-hook="status.time">{now.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}</strong><small>{now.toLocaleDateString("cs-CZ")}</small></div><div className="context-card"><span className="context-label">POČASÍ</span><strong id="C10" data-element-id="C10" data-hook="status.weather">N/A</strong><small>Počasí není připojeno</small></div><div className="topnav"><button {...actionProps("B01", "navigation.overview")} className={selectedNav === "Přehled" ? "active" : ""} onClick={() => setSelectedNav("Přehled")}><LayoutDashboard size={14} /> Přehled</button><button {...actionProps("B02", "navigation.projects.top")} className={selectedNav === "Projekty" ? "active" : ""} onClick={() => setSelectedNav("Projekty")}><Folder size={14} /> Projekty</button><button {...actionProps("B03", "navigation.agents.top")} className={selectedNav === "Agenti" ? "active" : ""} onClick={() => setSelectedNav("Agenti")}><Bot size={14} /> Agenti</button><button {...actionProps("B04", "navigation.terminal.top")} className={selectedNav === "Terminál" ? "active" : ""} onClick={() => setSelectedNav("Terminál")}><Command size={14} /> Terminál</button></div></div>
 
     <main className={`dashboard ${focusedPanel ? "has-focus" : ""}`}>
-      <div className="welcome-row"><div><p className="eyebrow">{now.toLocaleDateString("cs-CZ", { weekday: "long" }).toUpperCase()}</p><h1>Pracovní plocha agentů</h1><p className="lead">Řiď své AI agenty z jednoho místa.</p></div><div className="quick-actions"><button {...actionProps("B06", "sessions.create")} className="primary-button" onClick={() => void createWorkspaceSession()}><Plus size={16} /> Nová relace</button></div></div>
+      <div className="welcome-row"><div><p className="eyebrow">{now.toLocaleDateString("cs-CZ", { weekday: "long" }).toUpperCase()}</p><h1>Pracovní plocha agentů</h1><p className="lead">Řiď své AI agenty z jednoho místa.</p></div><div className="quick-actions"><button {...actionProps("B06", "sessions.create")} className="primary-button" onClick={() => void createWorkspaceSession()} disabled={!activeProject}><Plus size={16} /> Nová relace</button></div></div>
+
+      <div className="project-bar"><label>Aktivní projekt</label><select value={activeProjectId ?? ""} onChange={event => { setActiveProjectId(event.target.value || null); setActiveAgent(0); }}><option value="">Vyber nebo vytvoř projekt…</option>{projects.map(project => <option value={project.id} key={project.id}>{project.name} · {project.termuxPath}</option>)}</select><button className="primary-button" onClick={() => setProjectDialogOpen(value => !value)}><Plus size={15} /> Nový projekt</button>{activeProject && <small>{activeProject.termuxPath} · {activeProject.agentClis.length} přiřazených agentů</small>}</div>
+      {projectDialogOpen && <div className="project-dialog"><strong>Nový projekt ve sdíleném úložišti</strong><input value={projectName} onChange={event => setProjectName(event.target.value)} placeholder="Název projektu" /><button className="ghost-button" onClick={() => void chooseProjectDirectory()}>{projectDirectory ? `Vybráno: ${projectDirectory.displayName}` : "Vybrat složku zařízení"}</button>{projectDirectory && <small>{projectDirectory.termuxPath} · přístupné správci souborů</small>}<div className="project-dialog-actions"><button className="ghost-button" onClick={() => setProjectDialogOpen(false)}>Zrušit</button><button className="primary-button" onClick={() => void createProject()}>Vytvořit projekt</button></div></div>}
 
       <div className="overview-grid">
         {openPanels.W01 && <Panel id="W01" focused={focusedPanel === "W01"} onFocus={() => setFocusedPanel("W01")} title="AI Agenti v akci" icon={<Bot size={17} />} onClose={() => togglePanel("W01")}><div className="agent-hero"><div className="orb"><Bot size={30} /></div><strong>{agents[activeAgent].name}</strong><span className="subtle"><span className="online-dot small" /> {agents[activeAgent].status === "busy" ? "pracuje" : "čeká na úkol"}</span></div></Panel>}
@@ -298,7 +337,7 @@ export default function Home() {
         {openPanels.W05 && <Panel id="W05" focused={focusedPanel === "W05"} onFocus={() => setFocusedPanel("W05")} title="Tok práce agentů" icon={<Network size={17} />} onClose={() => togglePanel("W05")}><div className="flow-map"><span className="flow-node">Termux</span><i /><span className="flow-core"><Bot size={19} /></span><i /><span className="flow-node">CLI výstup</span></div><small className="flow-caption">{runtimeEvents.length ? `${runtimeEvents.length} skutečných runtime událostí` : "Čeká na skutečné spuštění CLI agenta"}</small></Panel>}
       </div>
 
-      {openPanels.W06 && <Panel id="W06" focused={focusedPanel === "W06"} onFocus={() => setFocusedPanel("W06")} title="AGENTI & SESSIONS" icon={<Network size={17} />} onClose={() => togglePanel("W06")} className="agents-panel"><div className="session-head"><span>{sessionCount} aktivní relace</span><button {...actionProps("B36", "sessions.create.secondary")} className="icon-button accent" onClick={(event) => { event.stopPropagation(); void createWorkspaceSession(); }}><Plus size={16} /></button></div><button {...actionProps("B07", "agent.active")} className="agent-row selected" onClick={(event) => { event.stopPropagation(); setActiveAgent(activeAgent); }}><span className="agent-avatar" style={{ background: agents[activeAgent].color }}>{agents[activeAgent].icon}</span><span className="agent-name">Aktivní agent: {agents[activeAgent].name}</span><span className="agent-status ready" /><ChevronRight size={16} /></button>{visibleAgents.map((agent, index) => <button {...actionProps(`B${String(8 + index).padStart(2, "0")}`, `agent.select.${agent.name.toLowerCase().replaceAll(" ", "-")}`)} className={`agent-row ${agent.active ? "selected" : ""}`} key={agent.name} onClick={(event) => { event.stopPropagation(); setActiveAgent(index); }}><span className="agent-avatar" style={{ background: agent.color }}>{agent.icon}</span><span className="agent-name">{agent.name}</span><span className={`agent-status ${agent.status}`} />{agent.active && <ChevronRight size={16} />}</button>)}<button {...actionProps("B11", "sessions.history")} className="agent-row history" onClick={(event) => { event.stopPropagation(); setSelectedNav("Historie"); void loadAgentSessions(); }}><History size={17} /><span>{sessionsBusy ? "Načítám sessions z Termuxu…" : "Historie sessions z Termuxu"}</span><ChevronRight size={16} /></button>{sessionsLoaded && <div className="session-history" onClick={event => event.stopPropagation()}>{agentSessions.length === 0 ? <span className="subtle">Nenalezen žádný session/conversation soubor v HOME Termuxu.</span> : agentSessions.map(session => <button className="session-file" key={session.path} onClick={() => void openAgentSession(session)}><span>{session.name}</span><small>{session.path} · {Math.round(session.size / 1024)} KB</small></button>)}{selectedSession && <div className="session-preview"><strong>{selectedSession.name}</strong><pre>{sessionContent || "Načítám obsah…"}</pre></div>}</div>}</Panel>}
+      {openPanels.W06 && <Panel id="W06" focused={focusedPanel === "W06"} onFocus={() => setFocusedPanel("W06")} title="AGENTI & SESSIONS" icon={<Network size={17} />} onClose={() => togglePanel("W06")} className="agents-panel"><div className="session-head"><span>{sessionCount} aktivní relace</span><button {...actionProps("B36", "sessions.create.secondary")} className="icon-button accent" onClick={(event) => { event.stopPropagation(); void createWorkspaceSession(); }}><Plus size={16} /></button></div><button {...actionProps("B07", "agent.active")} className="agent-row selected" onClick={(event) => { event.stopPropagation(); setActiveAgent(activeAgent); }}><span className="agent-avatar" style={{ background: visibleAgents[activeAgent]?.color ?? "#45516f" }}>{visibleAgents[activeAgent]?.icon ?? "—"}</span><span className="agent-name">Aktivní agent: {activeProject ? (visibleAgents[activeAgent]?.name ?? "Bez přiřazeného agenta") : "Bez projektu"}</span><span className={`agent-status ${visibleAgents[activeAgent]?.status ?? "offline"}`} /><ChevronRight size={16} /></button>{visibleAgents.map((agent, index) => <button {...actionProps(`B${String(8 + index).padStart(2, "0")}`, `agent.select.${agent.name.toLowerCase().replaceAll(" ", "-")}`)} className={`agent-row ${agent.active ? "selected" : ""}`} key={agent.name} onClick={(event) => { event.stopPropagation(); setActiveAgent(index); }}><span className="agent-avatar" style={{ background: agent.color }}>{agent.icon}</span><span className="agent-name">{agent.name}</span><span className={`agent-status ${agent.status}`} />{agent.active && <ChevronRight size={16} />}</button>)}{activeProject && <div className="project-agent-controls"><small>Přiřazení agentů k projektu</small>{agents.filter(agent => !activeProject.agentClis.includes(agent.cli)).map(agent => <button className="agent-manage add" key={`add-${agent.cli}`} onClick={(event) => { event.stopPropagation(); toggleProjectAgent(agent.cli); }}>+ {agent.name}</button>)}{visibleAgents.map(agent => <button className="agent-manage remove" key={`remove-${agent.cli}`} onClick={(event) => { event.stopPropagation(); toggleProjectAgent(agent.cli); }}>− {agent.name}</button>)}</div>}<button {...actionProps("B11", "sessions.history")} className="agent-row history" onClick={(event) => { event.stopPropagation(); setSelectedNav("Historie"); void loadAgentSessions(); }}><History size={17} /><span>{sessionsBusy ? "Načítám sessions z Termuxu…" : "Historie sessions z Termuxu"}</span><ChevronRight size={16} /></button>{sessionsLoaded && <div className="session-history" onClick={event => event.stopPropagation()}>{agentSessions.length === 0 ? <span className="subtle">Nenalezen žádný session/conversation soubor v HOME Termuxu.</span> : agentSessions.map(session => <button className="session-file" key={session.path} onClick={() => void openAgentSession(session)}><span>{session.name}</span><small>{session.path} · {Math.round(session.size / 1024)} KB</small></button>)}{selectedSession && <div className="session-preview"><strong>{selectedSession.name}</strong><pre>{sessionContent || "Načítám obsah…"}</pre></div>}</div>}</Panel>}
 
       <div className="workspace-toggle" onClick={(event) => event.stopPropagation()}><span><Code2 size={15} /> Pracovní režim</span><div className="segmented"><button {...actionProps("B24", "workspace.chat")} className={workspaceMode === "chat" ? "active" : ""} onClick={() => setWorkspaceMode("chat")}><MessageCircle size={14} /> Chat</button><button {...actionProps("B25", "workspace.termux")} className={workspaceMode === "termux" ? "active" : ""} onClick={() => setWorkspaceMode("termux")}><TerminalSquare size={14} /> Termux</button></div><button {...actionProps("C17", "keyboard.toggle")} className={`keyboard-toggle ${keyboardOpen ? "active" : ""}`} onClick={() => setKeyboardOpen(v => !v)} aria-label="Zobrazit klávesnici"><Menu size={16} /> Klávesnice</button></div>
 
