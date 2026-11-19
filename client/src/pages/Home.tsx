@@ -78,6 +78,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!vrMode) return;
+    document.querySelectorAll(".vr-eye-right [id]").forEach((element) => element.removeAttribute("id"));
+  }, [vrMode]);
+
+  useEffect(() => {
     const orientation = window.screen?.orientation as ScreenOrientation & { lock?: (type: string) => Promise<void>; unlock?: () => void } | undefined;
     if (vrMode) orientation?.lock?.("landscape").catch(() => undefined);
     else orientation?.unlock?.();

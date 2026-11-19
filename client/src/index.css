@@ -317,3 +317,7 @@ EOF
 .mode-vr .vr-eye-surface > .scene-main { pointer-events: auto; }
 .mode-vr .vr-eye-right .scene-main { pointer-events: none; }
 .mode-vr .vr-eye-surface > .dashboard > :has(.panel-focused) { opacity: 1; pointer-events: auto; }
+
+/* Final viewport geometry: normal mode is a real 9:16 canvas, while VR is a 16:9 SBS canvas. */
+.mode-normal .normal-stage { width: min(100vw, calc(100vh * 9 / 16), 430px); height: min(100vh, calc(100vw * 16 / 9), 764px); min-height: 0; aspect-ratio: 9 / 16; overflow: auto; }
+.stereo-stage { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); aspect-ratio: 16 / 9; }
