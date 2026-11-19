@@ -51,15 +51,18 @@ jobs:
       - name: Set build identity
         run: echo "VITE_BUILD_SHA=${GITHUB_SHA}" > .env.production.local
 
-      - name: Typecheck and web build
-        run: pnpm check && pnpm build
+      - name: Typecheck and unit tests
+        run: pnpm check && pnpm test
+
+      - name: Web build
+        run: pnpm build
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -74,12 +77,15 @@ jobs:
         run: |
           mkdir -p release
           cp android/app/build/outputs/apk/debug/app-debug.apk release/insane-ai-agent-vr.apk
+          SHA256=$(sha256sum release/insane-ai-agent-vr.apk | cut -d' ' -f1)
+          echo "APK SHA-256: $SHA256"
           cat > release/latest.json <<EOF
           {
             "app": "ai.insane.agentvr",
             "name": "Insane AI Agent",
             "build": "${GITHUB_SHA}",
             "run": "${GITHUB_RUN_NUMBER}",
+            "sha256": "${SHA256}",
             "apk": "https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/insane-ai-agent-vr.apk",
             "release": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/latest"
           }

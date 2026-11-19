@@ -109,6 +109,19 @@ export function SceneViewport({ eye = "normal", onPartClick }: { eye?: Eye; onPa
 
     const modelRoot = new THREE.Group();
     scene.add(modelRoot);
+    const disposeTree = (root: THREE.Object3D) => {
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => {
+          Object.values(material).forEach((value) => {
+            if (value instanceof THREE.Texture) value.dispose();
+          });
+          material.dispose();
+        });
+      });
+    };
     let disposed = false;
     let loaded = false;
     let activePart: THREE.Object3D | null = null;
@@ -118,7 +131,10 @@ export function SceneViewport({ eye = "normal", onPartClick }: { eye?: Eye; onPa
     new GLTFLoader().load(
       "/models/insane-agent-scene.glb",
       (gltf) => {
-        if (disposed) return;
+        if (disposed) {
+          disposeTree(gltf.scene);
+          return;
+        }
         const model = gltf.scene;
         const bounds = new THREE.Box3().setFromObject(model);
         const center = bounds.getCenter(new THREE.Vector3());
@@ -192,16 +208,11 @@ export function SceneViewport({ eye = "normal", onPartClick }: { eye?: Eye; onPa
       disposed = true;
       window.cancelAnimationFrame(frame);
       observer.disconnect();
-      renderer.dispose();
       renderer.domElement.removeEventListener("pointerdown", handlePointer);
       renderer.domElement.removeEventListener("click", stopClickPropagation);
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => material.dispose());
-        }
-      });
+      disposeTree(scene);
+      renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
     };
   }, [eye]);
