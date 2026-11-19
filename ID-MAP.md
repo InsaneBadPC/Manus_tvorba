@@ -29,7 +29,7 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | B11 | Historie relací | `sessions.history` | GET `/api/sessions?history=true` |
 | B12 | Nástroje | `chat.tools` | tool registry / permission model |
 | B13 | Git | `chat.git` | OAuth Git provider nebo server adapter |
-| B14 | Soubory / otevřít diff | `chat.files`, `diff.open-file` | file browser API / deep link |
+| B14 | Soubory | `chat.files` | file browser API / deep link |
 | B15 | Spustit terminál | `terminal.run` | bezpečný command job API |
 | B16 | Odeslat zprávu | `chat.send` | nahradit lokální demo adapter skutečným API/websocketem |
 | B17–B22 | Spodní navigace | `navigation.*` | router / native screen navigation |
@@ -52,7 +52,11 @@ Aplikace je připravená jako dotykový dashboard pro displej telefonu. Každý 
 | B33 | Otevřít VR scénu | `vr.scene.open` | napojit scene browser / WebXR preview |
 | B34 | Spustit VR build | `vr.build` | napojit Termux agent CLI nebo CI job |
 | B35 | Přepínač zobrazení | `display.vr.toggle` | 2D portrét 9:16 ↔ VR SBS landscape 16:9; při VR se zamkne landscape/fullscreen |
+| B36 | Nová relace v panelu Agenti | `sessions.create.secondary` | stejná session store akce jako B06, vlastní ID |
+| B37 | Otevřít diff soubor | `diff.open-file` | file browser API / deep link |
+| C43 | Hlasové ovládání v panelu | `voice.toggle.secondary` | stejný speech adapter jako C06, vlastní ID |
 | C31–C41 | Zavření panelů W01–W11 | `panel.*.close` | lokální layout preference; případně sync uživatele |
+| B41–B51 | Znovu otevřít panely W01–W11 | `panel.reopen.*` | lokální layout preference; oddělené od horní navigace |
 
 Klávesy vysouvané klávesnice mají ID `K{řádek}{sloupec}` a posílají znaky do právě zvoleného chatu nebo Termux inputu. Výřez původní klávesnice je uložen jako `client/public/keyboard-reference.png`; funkční klávesnice je ale vykreslena jako dotykové HTML ovládání, aby skutečně vkládala znaky.
 
