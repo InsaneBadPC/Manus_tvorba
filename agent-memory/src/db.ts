@@ -13,7 +13,7 @@ import type { MemoryStore } from "./store.ts";
 
 export type MemoryDatabase = SqliteDatabase;
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export function databasePath(root: string): string {
   return path.join(root, "index.db");
@@ -65,8 +65,14 @@ export function migrate(db: MemoryDatabase): void {
       agent TEXT NOT NULL DEFAULT '',
       kind TEXT NOT NULL DEFAULT 'note',
       text TEXT NOT NULL,
+      session TEXT NOT NULL DEFAULT '',
+      success INTEGER NOT NULL DEFAULT 1,
+      tools TEXT NOT NULL DEFAULT '',
+      meta TEXT NOT NULL DEFAULT '{}',
       created TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS episodes_scope ON episodes(project, agent, created);
+    CREATE INDEX IF NOT EXISTS episodes_session ON episodes(session, created);
     CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(
       text, tokenize = 'unicode61 remove_diacritics 2'
     );
@@ -109,6 +115,21 @@ export function migrate(db: MemoryDatabase): void {
       value TEXT NOT NULL
     );
   `);
+  // Databases created before schema v2 lack episode metadata columns.
+  const columns = new Set(
+    (db.prepare("PRAGMA table_info(episodes)").all() as Array<{ name: string }>).map(
+      (row) => row.name,
+    ),
+  );
+  const missing: Array<[string, string]> = [
+    ["session", "TEXT NOT NULL DEFAULT ''"],
+    ["success", "INTEGER NOT NULL DEFAULT 1"],
+    ["tools", "TEXT NOT NULL DEFAULT ''"],
+    ["meta", "TEXT NOT NULL DEFAULT '{}'"],
+  ];
+  for (const [name, definition] of missing) {
+    if (!columns.has(name)) db.exec(`ALTER TABLE episodes ADD COLUMN ${name} ${definition}`);
+  }
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 

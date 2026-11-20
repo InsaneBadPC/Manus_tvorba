@@ -2,7 +2,14 @@ import readline from "node:readline";
 import { getByName, getByPath, upsertItem } from "./db.ts";
 import { containsSecret, validateCandidate } from "./extract.ts";
 import { searchMemory } from "./retrieval.ts";
-import { loadSkill, proposeSkill, routeSkill, scanSkills, syncSkills } from "./skills.ts";
+import {
+  getSkillStats,
+  loadSkill,
+  proposeSkill,
+  routeSkill,
+  scanSkills,
+  syncSkills,
+} from "./skills.ts";
 import type { MemoryContext } from "./context.ts";
 
 type JsonRpcId = string | number | null;
@@ -214,6 +221,7 @@ async function callTool(
           status: skill.manifest.status,
           version: skill.manifest.version,
           permissions: skill.manifest.permissions,
+          stats: getSkillStats(ctx.db, skill.manifest.name),
           path: skill.relPath,
         })),
       );
@@ -249,9 +257,15 @@ async function callTool(
         permissions: Array.isArray(args.permissions)
           ? args.permissions.filter((entry): entry is string => typeof entry === "string")
           : [],
+        status: "draft",
       });
       await syncSkills(ctx.db, ctx.root);
-      return textResult({ proposed: true, path: proposal.relPath, status: "probation" });
+      return textResult({
+        proposed: true,
+        path: proposal.relPath,
+        status: "draft",
+        note: "a draft needs user approval before it can be routed",
+      });
     }
 
     default:

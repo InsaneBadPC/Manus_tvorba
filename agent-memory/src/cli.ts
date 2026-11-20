@@ -4,11 +4,19 @@ import { openContext } from "./context.ts";
 import { remember } from "./extract.ts";
 import { buildContext, searchMemory } from "./retrieval.ts";
 import {
+  approveDraftSkill,
   approveScript,
+  getSkillStats,
+  listReviewQueue,
+  recordSkillOutcome,
+  rejectDraftSkill,
   routeSkill,
   scanSkills,
   syncSkills,
 } from "./skills.ts";
+import { detectSkills } from "./detector.ts";
+import { listEpisodes, logEpisode } from "./episodes.ts";
+import { consolidate } from "./consolidation.ts";
 import { createAdapterFromEnv } from "./adapters/gemini.ts";
 import { FakeAdapter } from "./adapters/fake.ts";
 import { runMcpServer } from "./mcp.ts";
@@ -63,6 +71,14 @@ Příkazy:
   skills                    vypíše nainstalované skilly
   route <dotaz>             vybere skill pro zprávu
   approve <skill> <skript>  schválí konkrétní hash skriptu
+  approvals                 vypíše drafty a neschválené skripty
+  approve-skill <skill>     povýší draft na probation
+  reject-skill <skill>      vypne draft
+  episode <text>            zapíše epizodu (--kind, --session, --tools)
+  episodes                  vypíše poslední epizody
+  detect                    navrhne draft skilly z opakovaných postupů
+  outcome <skill>           zapíše úspěch/neúspěch (--failure)
+  consolidate               údržba jen s --idle --charging
   rebuild                   smaže a znovu postaví index
   mcp                       spustí MCP server na stdio
 
@@ -171,10 +187,98 @@ async function main(): Promise<number> {
             status: skill.manifest.status,
             version: skill.manifest.version,
             permissions: skill.manifest.permissions,
+            stats: getSkillStats(ctx.db, skill.manifest.name),
             path: skill.relPath,
           })),
           errors: scan.errors,
         });
+        return 0;
+      }
+
+      case "episode": {
+        const text = rest.join(" ").trim();
+        if (!text) throw new Error("episode requires text");
+        const kind = parsed.flags.kind as "step" | "error" | "result" | "note" | undefined;
+        const tools = parsed.flags.tools
+          ? parsed.flags.tools.split(",").map((tool) => tool.trim()).filter(Boolean)
+          : [];
+        const episode = logEpisode(ctx.db, {
+          text,
+          kind,
+          projectId: ctx.projectId,
+          agentId: ctx.agentId,
+          session: parsed.flags.session,
+          success: parsed.flags.failure === "true" ? false : parsed.flags.success !== "false",
+          tools,
+        });
+        print(episode);
+        return 0;
+      }
+
+      case "episodes": {
+        print(
+          listEpisodes(ctx.db, {
+            projectId: ctx.projectId,
+            agentId: ctx.agentId,
+            limit: numberFlag(parsed.flags, "limit"),
+          }),
+        );
+        return 0;
+      }
+
+      case "detect": {
+        const detected = await detectSkills(ctx.db, ctx.root, {
+          projectId: ctx.projectId,
+          agentId: ctx.agentId,
+          minSteps: numberFlag(parsed.flags, "min-steps"),
+          minRepeats: numberFlag(parsed.flags, "min-repeats"),
+          dryRun: parsed.flags["dry-run"] === "true",
+        });
+        print({ detected });
+        return 0;
+      }
+
+      case "approvals": {
+        print(await listReviewQueue(ctx.db, ctx.root));
+        return 0;
+      }
+
+      case "approve-skill": {
+        const name = rest.join(" ").trim();
+        if (!name) throw new Error("approve-skill requires a skill name");
+        const skill = await approveDraftSkill(ctx.db, ctx.root, name);
+        print({ approved: true, skill: skill.manifest.name, status: skill.manifest.status });
+        return 0;
+      }
+
+      case "reject-skill": {
+        const name = rest.join(" ").trim();
+        if (!name) throw new Error("reject-skill requires a skill name");
+        const skill = await rejectDraftSkill(ctx.db, ctx.root, name);
+        print({ rejected: true, skill: skill.manifest.name, status: skill.manifest.status });
+        return 0;
+      }
+
+      case "outcome": {
+        const name = rest.join(" ").trim();
+        if (!name) throw new Error("outcome requires a skill name");
+        const result = await recordSkillOutcome(
+          ctx.db,
+          ctx.root,
+          name,
+          parsed.flags.failure !== "true",
+        );
+        print({ skill: name, ...result });
+        return 0;
+      }
+
+      case "consolidate": {
+        const report = await consolidate(ctx, {
+          idle: parsed.flags.idle === "true",
+          charging: parsed.flags.charging === "true",
+          retentionDays: numberFlag(parsed.flags, "retention-days"),
+        });
+        print(report);
         return 0;
       }
 

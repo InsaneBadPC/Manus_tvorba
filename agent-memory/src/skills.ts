@@ -10,7 +10,13 @@ import {
 import { relativeTo, resolveInside, skillsRoot, slugify } from "./paths.ts";
 import { tokenize } from "./retrieval.ts";
 import type { MemoryDatabase } from "./db.ts";
-import type { SkillFile, SkillHit, SkillManifest } from "./types.ts";
+import type {
+  SkillFile,
+  SkillHit,
+  SkillManifest,
+  SkillStats,
+  SkillStatus,
+} from "./types.ts";
 
 export class SkillError extends Error {
   constructor(message: string) {
@@ -29,7 +35,9 @@ export interface SkillScanResult {
   errors: SkillScanError[];
 }
 
-const STATUSES = new Set(["active", "probation", "disabled"]);
+const STATUSES = new Set<SkillStatus>(["draft", "probation", "active", "disabled"]);
+const PROMOTE_AFTER_SUCCESSES = 3;
+const DISABLE_AFTER_FAILURES = 3;
 
 function hash(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -44,7 +52,7 @@ export function parseSkill(raw: string, absPath: string, root: string): SkillFil
   if (!description) throw new SkillError(`${absPath}: missing description`);
 
   const statusValue = stringField(data, "status", "active");
-  if (!STATUSES.has(statusValue)) {
+  if (!STATUSES.has(statusValue as SkillStatus)) {
     throw new SkillError(`${absPath}: unknown status '${statusValue}'`);
   }
 
@@ -58,7 +66,7 @@ export function parseSkill(raw: string, absPath: string, root: string): SkillFil
     ],
     permissions: stringArrayField(data, "permissions"),
     version: stringField(data, "version", "1.0.0"),
-    status: statusValue as SkillManifest["status"],
+    status: statusValue as SkillStatus,
   };
 
   return {
@@ -258,7 +266,7 @@ export function routeSkill(
   if (words.length === 0) return [];
   const lower = query.toLowerCase();
   const rows = db
-    .prepare("SELECT * FROM skills WHERE status != 'disabled'")
+    .prepare("SELECT * FROM skills WHERE status NOT IN ('disabled', 'draft')")
     .all() as unknown as SkillRow[];
 
   const hits: SkillHit[] = [];
@@ -321,12 +329,16 @@ export async function canRunScript(
   root: string,
   name: string,
   scriptPath: string,
+  options: { forReview?: boolean } = {},
 ): Promise<ScriptPermission> {
   const row = db
     .prepare("SELECT * FROM skills WHERE name = ? COLLATE NOCASE")
     .get(name) as SkillRow | undefined;
   if (!row) return { allowed: false, reason: "skill not found" };
   if (row.status === "disabled") return { allowed: false, reason: "skill is disabled" };
+  if (row.status === "draft" && !options.forReview) {
+    return { allowed: false, reason: "skill is not approved yet" };
+  }
   const permissions = row.permissions.split(" ").filter(Boolean);
   if (!permissions.includes("run-scripts") && !permissions.includes("execute")) {
     return { allowed: false, reason: "skill does not request script execution" };
@@ -385,11 +397,13 @@ export interface SkillProposal {
   triggers?: string[];
   body: string;
   permissions?: string[];
+  status?: "draft" | "probation";
 }
 
 export async function proposeSkill(
   root: string,
   proposal: SkillProposal,
+  options: { overwrite?: boolean } = {},
 ): Promise<{ absPath: string; relPath: string }> {
   const name = proposal.name.trim();
   const description = proposal.description.trim();
@@ -397,8 +411,17 @@ export async function proposeSkill(
   if (!description) throw new SkillError("skill description is required");
 
   const dir = path.join(skillsRoot(root), slugify(name));
-  await fs.mkdir(dir, { recursive: true });
   const absPath = path.join(dir, "SKILL.md");
+  if (!options.overwrite) {
+    try {
+      await fs.access(absPath);
+      throw new SkillError(`skill '${name}' already exists`);
+    } catch (error) {
+      if (error instanceof SkillError) throw error;
+      // ENOENT is expected for a new proposal.
+    }
+  }
+  await fs.mkdir(dir, { recursive: true });
   const content = serializeFrontmatter(
     {
       name,
@@ -406,10 +429,174 @@ export async function proposeSkill(
       triggers: proposal.triggers ?? [],
       permissions: proposal.permissions ?? [],
       version: "0.1.0",
-      status: "probation",
+      status: proposal.status ?? "probation",
     },
     proposal.body,
   );
   await fs.writeFile(absPath, content, { encoding: "utf8", mode: 0o600 });
   return { absPath, relPath: relativeTo(root, absPath) };
+}
+
+export function getSkillStats(db: MemoryDatabase, name: string): SkillStats {
+  const row = db
+    .prepare(
+      `SELECT skill_stats.* FROM skill_stats
+       JOIN skills ON skills.id = skill_stats.skill_id
+       WHERE skills.name = ? COLLATE NOCASE`,
+    )
+    .get(name) as
+    | { uses: number; successes: number; failures: number; last_used: string | null }
+    | undefined;
+  if (!row) return { uses: 0, successes: 0, failures: 0 };
+  return {
+    uses: Number(row.uses),
+    successes: Number(row.successes),
+    failures: Number(row.failures),
+    ...(row.last_used ? { lastUsed: row.last_used } : {}),
+  };
+}
+
+async function atomicWrite(target: string, content: string): Promise<void> {
+  const temp = `${target}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(temp, content, { encoding: "utf8", mode: 0o600 });
+  await fs.rename(temp, target);
+}
+
+/** Rewrites only the status line while preserving the rest of the manifest. */
+export async function updateSkillStatus(
+  db: MemoryDatabase,
+  root: string,
+  name: string,
+  status: SkillStatus,
+): Promise<SkillFile> {
+  if (!STATUSES.has(status)) throw new SkillError(`unknown status '${status}'`);
+  const row = db
+    .prepare("SELECT path FROM skills WHERE name = ? COLLATE NOCASE")
+    .get(name) as { path: string } | undefined;
+  if (!row) throw new SkillError(`skill '${name}' not found`);
+  const absPath = resolveInside(root, row.path);
+  const raw = await fs.readFile(absPath, "utf8");
+  const parsed = parseFrontmatter(raw);
+  const data = { ...parsed.data, status };
+  await atomicWrite(absPath, serializeFrontmatter(data, parsed.body));
+  await syncSkills(db, root);
+  const updated = loadSkill(db, name);
+  if (!updated) throw new SkillError(`skill '${name}' disappeared after update`);
+  return updated;
+}
+
+export interface SkillOutcome {
+  stats: SkillStats;
+  status: SkillStatus;
+  changed: boolean;
+}
+
+/**
+ * Records a real run outcome and applies the probation lifecycle:
+ * 3 successful uses promote, 3 failed uses disable. Drafts never auto-activate.
+ */
+export async function recordSkillOutcome(
+  db: MemoryDatabase,
+  root: string,
+  name: string,
+  success: boolean,
+): Promise<SkillOutcome> {
+  recordSkillUse(db, name, success);
+  const row = db
+    .prepare("SELECT * FROM skills WHERE name = ? COLLATE NOCASE")
+    .get(name) as SkillRow | undefined;
+  if (!row) throw new SkillError(`skill '${name}' not found`);
+  const stats = getSkillStats(db, name);
+  let status = row.status as SkillStatus;
+  let next = status;
+  if (status === "probation") {
+    if (stats.failures >= DISABLE_AFTER_FAILURES) next = "disabled";
+    else if (stats.successes >= PROMOTE_AFTER_SUCCESSES) next = "active";
+  }
+  if (next !== status) {
+    await updateSkillStatus(db, root, name, next);
+    status = next;
+  }
+  return { stats, status, changed: next !== row.status };
+}
+
+export interface PendingSkillReview {
+  name: string;
+  description: string;
+  path: string;
+  status: "draft";
+}
+
+export interface PendingScriptReview {
+  skill: string;
+  path: string;
+  hash: string;
+}
+
+export interface ReviewQueue {
+  skills: PendingSkillReview[];
+  scripts: PendingScriptReview[];
+}
+
+async function listScripts(dir: string): Promise<string[]> {
+  const found: string[] = [];
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...(await listScripts(abs)));
+    } else if (entry.isFile() && entry.name !== "SKILL.md") {
+      found.push(abs);
+    }
+  }
+  return found;
+}
+
+/** Lists drafts and script files whose current hash has no approval. */
+export async function listReviewQueue(
+  db: MemoryDatabase,
+  root: string,
+): Promise<ReviewQueue> {
+  const scan = await scanSkills(root);
+  const skills: PendingSkillReview[] = scan.skills
+    .filter((skill) => skill.manifest.status === "draft")
+    .map((skill) => ({
+      name: skill.manifest.name,
+      description: skill.manifest.description,
+      path: skill.relPath,
+      status: "draft" as const,
+    }));
+
+  const scripts: PendingScriptReview[] = [];
+  for (const skill of scan.skills) {
+    const permissions = skill.manifest.permissions;
+    if (!permissions.includes("run-scripts") && !permissions.includes("execute")) continue;
+    const scriptPaths = await listScripts(skill.dir);
+    for (const abs of scriptPaths) {
+      const rel = relativeTo(skill.dir, abs);
+      const permission = await canRunScript(db, root, skill.manifest.name, rel, {
+        forReview: true,
+      });
+      if (permission.allowed || !permission.hash) continue;
+      scripts.push({ skill: skill.manifest.name, path: rel, hash: permission.hash });
+    }
+  }
+  return { skills, scripts };
+}
+
+export async function approveDraftSkill(
+  db: MemoryDatabase,
+  root: string,
+  name: string,
+): Promise<SkillFile> {
+  return updateSkillStatus(db, root, name, "probation");
+}
+
+export async function rejectDraftSkill(
+  db: MemoryDatabase,
+  root: string,
+  name: string,
+): Promise<SkillFile> {
+  return updateSkillStatus(db, root, name, "disabled");
 }

@@ -1,6 +1,6 @@
 # Architektura paměti a skillů (Fáze 1)
 
-Stav: implementováno v `agent-memory/`, otestováno 21 testy, změřen výkon na 5 000 záznamech.
+Stav: Fáze 1 a jádro Fáze 2 implementovány v `agent-memory/`, otestováno 34 testy, změřen výkon na 5 000 záznamech. Samoučení popisuje `docs/memory-phase2.md`.
 
 ## 1. Rozhodnutí
 
@@ -80,14 +80,14 @@ Výstup je jen seznam faktů, ne instrukce. Vložený text z paměti nesmí měn
 
 ## 7. Skilly
 
-`SKILL.md` má plochý frontmatter (`name`, `description`, `triggers`, `allowed-tools`, `permissions`, `version`, `status`) a tělo s postupem. Router vybírá nejvýše jeden skill podle triggerů a názvu.
+`SKILL.md` má plochý frontmatter (`name`, `description`, `triggers`, `allowed-tools`, `permissions`, `version`, `status`) a tělo s postupem. Stavy jsou `draft`, `probation`, `active` a `disabled`; router vidí jen `probation` a `active`.
 
 Skript se nesmí spustit, pokud:
 
 - manifest nemá `run-scripts` nebo `execute`;
 - aktuální hash souboru nemá záznam v `skill_approvals`.
 
-Změna skriptu hash změní a schválení tím propadne. Samotný runner skriptů není součástí Fáze 1; implementované je pouze bezpečnostní hradlo `canRunScript()`.
+Změna skriptu hash změní a schválení tím propadne. Samotný runner skriptů není implementovaný; hotové je bezpečnostní hradlo `canRunScript()` a fronta schválení.
 
 ## 8. MCP nástroje
 
@@ -114,10 +114,16 @@ Naměřeno v Termuxu, Node 24.18, 5 000 markdown záznamů, file-backed SQLite:
 
 Limit 20 ms je splněn pro samotný index a retrieval. IPC přes Termux bridge se do měření nepočítá; persistentní MCP proces se mu vyhýbá.
 
-## 10. Co záměrně chybí
+## 10. Epizody a samoučení
+
+Úspěšné kroky se logují do `episodes` (+ FTS5). Detektor hledá opakované sekvence nástrojů ve třech relacích nebo dlouhou úspěšnou relaci a vytváří `draft` skill. Tělo draftu obsahuje jen názvy nástrojů a počty, nikdy volný text logů. Draft se musí schválit; `probation` se po třech úspěších povýší a po třech selháních vypne.
+
+Konsolidace se odmítne spustit bez `idle` a `charging`, synchronizuje index, zkontroluje integritu a maže epizody po 30 dnech.
+
+## 11. Co záměrně chybí
 
 - Assistant klient a modelová smyčka — chybí nadřazená vrstva, ne paměť.
-- UI pro správu paměti a potvrzovací karty.
-- Spouštěč skriptů a foreground service.
-- Embeddingy a vektorové hledání.
-- Konsolidace na pozadí a exploitní ochrana proti prompt injection v assistantovi (paměť už vkládá jen data, ale nadřazený prompt ještě neexistuje).
+- UI pro správu paměti, skillů a fronty schválení.
+- Android foreground service a WorkManager napojení na konsolidaci.
+- Spouštěč skriptů.
+- Embeddingy, vektorové hledání a `curator` sumarizace.

@@ -28,7 +28,7 @@ Pravidla frontmatteru:
 - `triggers` jsou slova nebo krátké fráze, které router hledá ve zprávě;
 - `allowed-tools` je deklarativní seznam, ne automatické povolení;
 - `permissions` může obsahovat `run-scripts` nebo `execute`;
-- `status` je `active`, `probation` nebo `disabled`.
+- `status` je `draft`, `probation`, `active` nebo `disabled`; `draft` se neroutuje.
 
 Tělo jsou instrukce pro model. Piš je jako postup, ne jako esej. Nevkládej do nich tajemství.
 
@@ -65,7 +65,7 @@ node agent-memory/src/cli.ts approve testing run.sh
 
 Schválení je vázané na hash. Jakákoli změna skriptu ho zneplatní a je potřeba ho znovu schválit. To je záměr: agent nesmí potichu vyměnit schválený skript za jiný.
 
-Samotný runner skriptů není ve Fázi 1 implementovaný. `canRunScript()` je hradlo, které musí budoucí runner volat před každým spuštěním.
+Samotný runner skriptů zatím není implementovaný. `canRunScript()` je hradlo, které musí budoucí runner volat před každým spuštěním. Fronta neschválených skriptů je v `approvals`.
 
 ## Návrh nového skillu
 
@@ -84,7 +84,7 @@ Přes MCP:
 }
 ```
 
-Návrh se uloží se `status: probation` a `version: 0.1.0`. Nespouští se. Teprve po kontrole můžeš změnit status na `active`.
+Návrh z MCP se uloží se `status: draft` a `version: 0.1.0`. Draft se neroutuje a nespouští. Po kontrole ho schval příkazem `approve-skill`; tím se dostane na `probation` a začnou se sbírat statistiky. Tři úspěchy ho povýší na `active`, tři selhání vypnou.
 
 ## Bezpečnost
 

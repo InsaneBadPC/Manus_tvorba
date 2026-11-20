@@ -36,6 +36,14 @@ node agent-memory/src/cli.ts remember "Používáme pytest a coverage."
 node agent-memory/src/cli.ts skills
 node agent-memory/src/cli.ts route "spusť testy"
 node agent-memory/src/cli.ts approve testing run.sh
+node agent-memory/src/cli.ts approvals
+node agent-memory/src/cli.ts approve-skill postup-terminal-edit-test
+node agent-memory/src/cli.ts reject-skill postup-terminal-edit-test
+node agent-memory/src/cli.ts episode "pytest prošel" --kind result --session run-1 --tools terminal,test
+node agent-memory/src/cli.ts episodes --limit 20
+node agent-memory/src/cli.ts detect --dry-run
+node agent-memory/src/cli.ts outcome testing --failure
+node agent-memory/src/cli.ts consolidate --idle --charging --retention-days 30
 node agent-memory/src/cli.ts rebuild
 node agent-memory/src/cli.ts mcp
 ```
@@ -50,6 +58,8 @@ Společné volby:
 ```
 
 `context` vypíše blok paměti na stdout a metriky (`chars`, `tokens~`, `ms`) na stderr.
+
+`consolidate` bez obou flagů `--idle` a `--charging` selže. Android je musí předat podle skutečného stavu zařízení; nejde je nahradit konstantou.
 
 ## MCP v Claude Code / jiném klientovi
 

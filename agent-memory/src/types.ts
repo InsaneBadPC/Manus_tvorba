@@ -111,6 +111,9 @@ export interface RememberReport {
   skipped: ExtractionSkip[];
 }
 
+export const SKILL_STATUSES = ["draft", "probation", "active", "disabled"] as const;
+export type SkillStatus = (typeof SKILL_STATUSES)[number];
+
 export interface SkillManifest {
   name: string;
   description: string;
@@ -118,7 +121,14 @@ export interface SkillManifest {
   allowedTools: string[];
   permissions: string[];
   version: string;
-  status: "active" | "probation" | "disabled";
+  status: SkillStatus;
+}
+
+export interface SkillStats {
+  uses: number;
+  successes: number;
+  failures: number;
+  lastUsed?: string;
 }
 
 export interface SkillFile {
@@ -140,6 +150,34 @@ export interface Budget {
   maxRecords: number;
   maxChars: number;
   coreMaxChars: number;
+}
+
+export const EPISODE_KINDS = ["step", "error", "result", "note"] as const;
+export type EpisodeKind = (typeof EPISODE_KINDS)[number];
+
+export interface EpisodeInput {
+  text: string;
+  kind?: EpisodeKind;
+  projectId?: string;
+  agentId?: string;
+  session?: string;
+  success?: boolean;
+  tools?: string[];
+  meta?: Record<string, unknown>;
+  created?: string;
+}
+
+export interface Episode {
+  id: number;
+  project: string;
+  agent: string;
+  kind: EpisodeKind;
+  text: string;
+  session: string;
+  success: boolean;
+  tools: string[];
+  meta: Record<string, unknown>;
+  created: string;
 }
 
 export const DEFAULT_BUDGET: Budget = {
