@@ -95,7 +95,7 @@ const TOOLS = [
   },
   {
     name: "skill_propose",
-    description: "Propose a new skill in probation status for later approval.",
+    description: "Propose a new skill draft for later user approval.",
     inputSchema: {
       type: "object",
       properties: {

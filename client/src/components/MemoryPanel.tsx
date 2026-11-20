@@ -1,0 +1,284 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Check,
+  Database,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Wrench,
+  X,
+} from "lucide-react";
+import {
+  approveSkillScript,
+  memoryAction,
+  readMemorySnapshot,
+  scheduleMemoryMaintenance,
+  type MemorySnapshot,
+} from "@/lib/memory";
+
+type Tab = "memory" | "skills" | "approvals";
+
+export function MemoryPanel({
+  projectId,
+  projectCwd,
+}: {
+  projectId: string;
+  projectCwd: string;
+}) {
+  const [snapshot, setSnapshot] = useState<MemorySnapshot | null>(null);
+  const [tab, setTab] = useState<Tab>("memory");
+  const [query, setQuery] = useState("");
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    if (!projectId) return;
+    setBusy(true);
+    setError("");
+    try {
+      setSnapshot(await readMemorySnapshot(projectId, projectCwd));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Načtení paměti selhalo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, projectCwd]);
+
+  const run = async (action: () => Promise<string>) => {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      setMessage(await action());
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Akce selhala.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const filteredMemory = useMemo(() => {
+    if (!snapshot) return [];
+    const needle = query.trim().toLowerCase();
+    if (!needle) return snapshot.memory;
+    return snapshot.memory.filter((item) =>
+      `${item.name} ${item.description} ${item.tags.join(" ")}`.toLowerCase().includes(needle),
+    );
+  }, [snapshot, query]);
+
+  const selected = snapshot?.memory.find((item) => item.path === selectedPath);
+  const lastConsolidation = snapshot?.stats.lastConsolidation ?? null;
+
+  if (!projectId) {
+    return <div className="memory-empty">Vyber projekt. Paměť je viditelná pro jeho scope.</div>;
+  }
+
+  return (
+    <div className="memory-panel" onClick={(event) => event.stopPropagation()}>
+      <div className="memory-toolbar">
+        <div className="memory-stats">
+          <span><Database size={13} /> {snapshot?.stats.memory ?? "—"} záznamů</span>
+          <span>{snapshot?.stats.episodes ?? "—"} epizod</span>
+          <span className={lastConsolidation ? "" : "muted"}>
+            {lastConsolidation
+              ? `údržba ${new Date(lastConsolidation).toLocaleString("cs-CZ")}`
+              : "údržba zatím neproběhla"}
+          </span>
+        </div>
+        <div className="memory-actions">
+          <button className="tool-button" onClick={() => void load()} disabled={busy}>
+            <RefreshCw size={13} /> Obnovit
+          </button>
+          <button
+            className="tool-button"
+            disabled={busy}
+            onClick={() => void run(() => memoryAction("rebuild", undefined, projectId, projectCwd))}
+          >
+            <Wrench size={13} /> Přestavět index
+          </button>
+          <button
+            className="tool-button"
+            disabled={busy}
+            onClick={() => void run(scheduleMemoryMaintenance)}
+          >
+            <ShieldCheck size={13} /> Naplánovat údržbu
+          </button>
+        </div>
+      </div>
+
+      <div className="segmented memory-tabs">
+        <button className={tab === "memory" ? "active" : ""} onClick={() => setTab("memory")}>
+          Paměť
+        </button>
+        <button className={tab === "skills" ? "active" : ""} onClick={() => setTab("skills")}>
+          Skilly <span className="count-badge">{snapshot?.skills.length ?? 0}</span>
+        </button>
+        <button className={tab === "approvals" ? "active" : ""} onClick={() => setTab("approvals")}>
+          Schválení{" "}
+          <span className="count-badge">
+            {(snapshot?.approvals.skills.length ?? 0) + (snapshot?.approvals.scripts.length ?? 0)}
+          </span>
+        </button>
+      </div>
+
+      {error && <div className="memory-alert error"><AlertTriangle size={14} /> {error}</div>}
+      {message && <div className="memory-alert ok"><Check size={14} /> {message}</div>}
+
+      {tab === "memory" && (
+        <div className="memory-columns">
+          <div className="memory-list">
+            <label className="memory-search">
+              <Search size={13} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Hledat v paměti…"
+              />
+            </label>
+            {busy && !snapshot && <div className="memory-empty">Načítám…</div>}
+            {!busy && filteredMemory.length === 0 && (
+              <div className="memory-empty">Zatím tu není žádný záznam.</div>
+            )}
+            {filteredMemory.map((item) => (
+              <button
+                key={item.path}
+                className={`memory-item ${selectedPath === item.path ? "selected" : ""}`}
+                onClick={() => setSelectedPath(item.path)}
+              >
+                <span className="memory-item-title">
+                  {item.pinned ? "★ " : ""}
+                  {item.name}
+                </span>
+                <small>{item.description}</small>
+                <span className="memory-meta">
+                  {item.scope}
+                  {item.scopeOwner ? `:${item.scopeOwner}` : ""} · {item.tags.join(", ") || "bez tagů"}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="memory-detail">
+            {selected ? (
+              <>
+                <div className="memory-detail-head">
+                  <strong>{selected.name}</strong>
+                  <small>{selected.path} · {new Date(selected.updated).toLocaleString("cs-CZ")}</small>
+                </div>
+                <p>{selected.description}</p>
+                <pre>{selected.body || "(bez těla)"}</pre>
+              </>
+            ) : (
+              <div className="memory-empty">Vyber záznam pro detail.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "skills" && (
+        <div className="memory-list">
+          {(snapshot?.skills.length ?? 0) === 0 && (
+            <div className="memory-empty">Žádné skilly.</div>
+          )}
+          {snapshot?.skills.map((skill) => (
+            <div className="skill-row" key={skill.name}>
+              <div className="skill-row-main">
+                <strong>
+                  {skill.name} <span className={`status-badge ${skill.status}`}>{skill.status}</span>
+                </strong>
+                <small>{skill.description}</small>
+                <span className="memory-meta">
+                  {skill.stats.uses} použití · {skill.stats.successes} úspěchů ·{" "}
+                  {skill.stats.failures} selhání · v{skill.version}
+                </span>
+              </div>
+              {skill.status === "draft" && (
+                <div className="skill-row-actions">
+                  <button
+                    className="tool-button"
+                    disabled={busy}
+                    onClick={() => void run(() => memoryAction("approve-skill", skill.name, projectId, projectCwd))}
+                  >
+                    <Check size={13} /> Schválit
+                  </button>
+                  <button
+                    className="tool-button danger"
+                    disabled={busy}
+                    onClick={() => void run(() => memoryAction("reject-skill", skill.name, projectId, projectCwd))}
+                  >
+                    <X size={13} /> Zamítnout
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {snapshot?.skillErrors.map((failure) => (
+            <div className="memory-alert error" key={failure.relPath}>
+              <AlertTriangle size={14} /> {failure.relPath}: {failure.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "approvals" && (
+        <div className="memory-list">
+          {(snapshot?.approvals.skills.length ?? 0) === 0 &&
+            (snapshot?.approvals.scripts.length ?? 0) === 0 && (
+              <div className="memory-empty">Nic nečeká na schválení.</div>
+            )}
+          {snapshot?.approvals.skills.map((skill) => (
+            <div className="skill-row" key={skill.name}>
+              <div className="skill-row-main">
+                <strong>{skill.name} <span className="status-badge draft">draft</span></strong>
+                <small>{skill.description}</small>
+              </div>
+              <div className="skill-row-actions">
+                <button
+                  className="tool-button"
+                  disabled={busy}
+                  onClick={() => void run(() => memoryAction("approve-skill", skill.name, projectId, projectCwd))}
+                >
+                  <Check size={13} /> Schválit
+                </button>
+                <button
+                  className="tool-button danger"
+                  disabled={busy}
+                  onClick={() => void run(() => memoryAction("reject-skill", skill.name, projectId, projectCwd))}
+                >
+                  <X size={13} /> Zamítnout
+                </button>
+              </div>
+            </div>
+          ))}
+          {snapshot?.approvals.scripts.map((script) => (
+            <div className="skill-row" key={`${script.skill}-${script.path}`}>
+              <div className="skill-row-main">
+                <strong>{script.skill}/{script.path}</strong>
+                <small className="memory-meta">hash {script.hash.slice(0, 16)}…</small>
+              </div>
+              <button
+                className="tool-button"
+                disabled={busy}
+                onClick={() =>
+                  void run(() =>
+                    approveSkillScript(script.skill, script.path, projectId, projectCwd),
+                  )
+                }
+              >
+                <ShieldCheck size={13} /> Schválit hash
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

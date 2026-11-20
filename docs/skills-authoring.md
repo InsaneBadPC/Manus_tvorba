@@ -65,7 +65,7 @@ node agent-memory/src/cli.ts approve testing run.sh
 
 Schválení je vázané na hash. Jakákoli změna skriptu ho zneplatní a je potřeba ho znovu schválit. To je záměr: agent nesmí potichu vyměnit schválený skript za jiný.
 
-Samotný runner skriptů zatím není implementovaný. `canRunScript()` je hradlo, které musí budoucí runner volat před každým spuštěním. Fronta neschválených skriptů je v `approvals`.
+Runner `runSkillScript()` ověří stejné hradlo a potom skript skutečně spustí. Podporované přípony jsou `.sh`, `.bash`, `.py`, `.js`, `.mjs` a `.cjs`; interpret se vybírá podle přípony a skript dostane jen malé prostředí, timeout a limit výstupu. Skript se spouští bez shellu, takže argumenty nejdou znovu parsovat. Fronta neschválených skriptů je v `approvals` a v UI je tlačítko „Schválit hash“.
 
 ## Návrh nového skillu
 
@@ -84,7 +84,7 @@ Přes MCP:
 }
 ```
 
-Návrh z MCP se uloží se `status: draft` a `version: 0.1.0`. Draft se neroutuje a nespouští. Po kontrole ho schval příkazem `approve-skill`; tím se dostane na `probation` a začnou se sbírat statistiky. Tři úspěchy ho povýší na `active`, tři selhání vypnou.
+Návrh z MCP nebo z nástroje asistenta se uloží se `status: draft` a `version: 0.1.0`. Draft se neroutuje a nespouští. Po kontrole ho schval příkazem `approve-skill`; tím se dostane na `probation` a začnou se sbírat statistiky. Tři úspěchy ho povýší na `active`, tři selhání vypnou.
 
 ## Bezpečnost
 

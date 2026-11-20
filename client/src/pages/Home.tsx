@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, Bot, Check, ChevronDown, ChevronRight, Code2, Command,
+  Activity, Bot, Brain, Check, ChevronDown, ChevronRight, Code2, Command,
   Folder, GitBranch, History, LayoutDashboard, Menu, MessageCircle, Mic,
   Monitor, Network, Play, Plus, Send, Settings,
   SlidersHorizontal, Sparkles, TerminalSquare, X, Zap,
@@ -9,6 +9,7 @@ import { isTermuxBridgeAvailable, runTermuxCommand } from "@/lib/termux";
 import { checkForUpdate, installUpdate, type UpdateInfo } from "@/lib/app-update";
 import { readDeviceStatus, type DeviceStatus } from "@/lib/device-status";
 import { SceneViewport } from "@/components/SceneViewport";
+import { MemoryPanel } from "@/components/MemoryPanel";
 import { pickProjectDirectory } from "@/lib/project-storage";
 import { parseAgentAvailability, parseWorkspaceFiles } from "@/lib/shell-output";
 
@@ -34,7 +35,7 @@ function Panel({ id, title, icon, children, onClose, className = "", focused = f
 }
 function hookName(id: string) { return id.toLowerCase().replace("w", "window-"); }
 function closeId(id: string) {
-  const legendCloseIds: Record<string, string> = { W01: "C11", W02: "C12", W03: "C13", W04: "C14", W05: "C15", W08: "C16" };
+  const legendCloseIds: Record<string, string> = { W01: "C11", W02: "C12", W03: "C13", W04: "C14", W05: "C15", W08: "C16", W12: "C44" };
   return legendCloseIds[id] ?? `C${30 + Number(id.slice(1))}`;
 }
 function actionProps(id: string, hook: string) { return { ...idProps(id, hook), type: "button" as const }; }
@@ -64,7 +65,7 @@ export default function Home() {
   const activeProject = projects.find(project => project.id === activeProjectId) ?? null;
   const projectCwd = activeProject?.termuxPath ?? "~";
   const [selectedNav, setSelectedNav] = useStoredState("selected-nav", "Přehled");
-  const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({ W01: true, W02: true, W03: true, W04: true, W05: true, W06: true, W07: true, W08: true, W09: true, W10: true, W11: true });
+  const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({ W01: true, W02: true, W03: true, W04: true, W05: true, W06: true, W07: true, W08: true, W09: true, W10: true, W11: true, W12: true });
   const [messages, setMessages] = useStoredState<Message[]>("chat.messages", [{ from: "agent", text: "Systém je připravený. Vyber agenta nebo zadej úkol.", time: "12:00" }]);
   const [runtimeEvents, setRuntimeEvents] = useStoredState<string[]>("runtime.events", []);
   const [draft, setDraft] = useStoredState("chat.draft", "");
@@ -159,7 +160,7 @@ export default function Home() {
   }, [activeAgent, visibleAgents.length]);
   const navigateTo = (nav: string) => {
     setSelectedNav(nav);
-    const panelByNav: Record<string, string> = { Agenti: "W06", Chat: "W07", Diffy: "W08", Terminál: "W09", Prostředí: "W10", Nastavení: "W10" };
+    const panelByNav: Record<string, string> = { Agenti: "W06", Chat: "W07", Diffy: "W08", Terminál: "W09", Prostředí: "W10", Nastavení: "W10", Paměť: "W12" };
     const panel = panelByNav[nav];
     if (panel) {
       setOpenPanels(p => ({ ...p, [panel]: true }));
@@ -349,7 +350,7 @@ export default function Home() {
 
     {updateInfo?.available && <div className="update-banner" role="status"><div><strong>Je dostupná nová verze aplikace</strong><small>Build {updateInfo.run ?? updateInfo.build.slice(0, 8)} z GitHubu</small></div><button {...actionProps("B28", "app.update.install")} className="primary-button" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk, updateInfo.sha256); setUpdateBusy(false); }}>{updateBusy ? "Stahuji APK…" : "Aktualizovat"}</button></div>}
 
-    <div className="origin-strip"><div className="context-card"><span className="context-label">ČAS</span><strong id="C09" data-element-id="C09" data-hook="status.time">{now.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}</strong><small>{now.toLocaleDateString("cs-CZ")}</small></div><div className="context-card"><span className="context-label">POČASÍ</span><strong id="C10" data-element-id="C10" data-hook="status.weather">N/A</strong><small>Počasí není připojeno</small></div><div className="topnav"><button {...actionProps("B01", "navigation.overview")} className={selectedNav === "Přehled" ? "active" : ""} onClick={() => navigateTo("Přehled")}><LayoutDashboard size={14} /> Přehled</button><button {...actionProps("B02", "navigation.projects.top")} className={selectedNav === "Projekty" ? "active" : ""} onClick={() => navigateTo("Projekty")}><Folder size={14} /> Projekty</button><button {...actionProps("B03", "navigation.agents.top")} className={selectedNav === "Agenti" ? "active" : ""} onClick={() => navigateTo("Agenti")}><Bot size={14} /> Agenti</button><button {...actionProps("B04", "navigation.terminal.top")} className={selectedNav === "Terminál" ? "active" : ""} onClick={() => navigateTo("Terminál")}><Command size={14} /> Terminál</button></div></div>
+    <div className="origin-strip"><div className="context-card"><span className="context-label">ČAS</span><strong id="C09" data-element-id="C09" data-hook="status.time">{now.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}</strong><small>{now.toLocaleDateString("cs-CZ")}</small></div><div className="context-card"><span className="context-label">POČASÍ</span><strong id="C10" data-element-id="C10" data-hook="status.weather">N/A</strong><small>Počasí není připojeno</small></div><div className="topnav"><button {...actionProps("B01", "navigation.overview")} className={selectedNav === "Přehled" ? "active" : ""} onClick={() => navigateTo("Přehled")}><LayoutDashboard size={14} /> Přehled</button><button {...actionProps("B02", "navigation.projects.top")} className={selectedNav === "Projekty" ? "active" : ""} onClick={() => navigateTo("Projekty")}><Folder size={14} /> Projekty</button><button {...actionProps("B03", "navigation.agents.top")} className={selectedNav === "Agenti" ? "active" : ""} onClick={() => navigateTo("Agenti")}><Bot size={14} /> Agenti</button>  <button {...actionProps("B04", "navigation.terminal.top")} className={selectedNav === "Terminál" ? "active" : ""} onClick={() => navigateTo("Terminál")}><Command size={14} /> Terminál</button><button {...actionProps("B38", "navigation.memory.top")} className={selectedNav === "Paměť" ? "active" : ""} onClick={() => navigateTo("Paměť")}><Brain size={14} /> Paměť</button></div></div>
 
     <main className={`dashboard ${focusedPanel ? "has-focus" : ""}`}>
       <div className="welcome-row"><div><p className="eyebrow">{now.toLocaleDateString("cs-CZ", { weekday: "long" }).toUpperCase()}</p><h1>Pracovní plocha agentů</h1><p className="lead">Řiď své AI agenty z jednoho místa.</p></div><div className="quick-actions"><button {...actionProps("B06", "sessions.create")} className="primary-button" onClick={() => void createWorkspaceSession()} disabled={!activeProject}><Plus size={16} /> Nová relace</button></div></div>
@@ -374,6 +375,8 @@ export default function Home() {
       {keyboardOpen && <div className="keyboard-dock" onClick={(event) => event.stopPropagation()}><div className="keyboard-dock-head"><span><Menu size={14} /> Dotyková klávesnice</span><button {...actionProps("C42", "keyboard.close")} onClick={() => setKeyboardOpen(false)}><X size={15} /></button></div>{[["1","2","3","4","5","6","7","8","9","0"],["Q","W","E","R","T","Z","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["⌫","⇧","Y","X","C","V","B","N","M","↵"],["␣"]].map((row, rowIndex) => <div className="keyboard-row" key={rowIndex}>{row.map((key, keyIndex) => <button key={key} {...actionProps(`K${rowIndex + 1}${keyIndex + 1}`, `keyboard.key.${key}`)} className={key === "␣" ? "space-key" : ""} onClick={() => pressKey(key)}>{key}</button>)}</div>)}</div>}
 
       <div className="split-grid">{openPanels.W08 && <Panel id="W08" focused={focusedPanel === "W08"} onFocus={() => setFocusedPanel("W08")} title="CODE DIFF" icon={<Code2 size={17} />} onClose={() => togglePanel("W08")}><div className="diff-file"><span className="file-dot" /> skutečný git diff</div><pre className="diff"><span>{runtimeEvents.find(event => event.includes("Diff:")) ?? "Klikni na tlačítko níže pro načtení skutečného diffu."}</span></pre><button {...actionProps("B37", "diff.open-file")} className="ghost-button" onClick={(event) => { event.stopPropagation(); void runWorkspaceCommand("Diff", "git diff"); }}>Načíst diff <ChevronRight size={14} /></button></Panel>}{openPanels.W09 && <Panel id="W09" focused={focusedPanel === "W09"} onFocus={() => setFocusedPanel("W09")} title="TERMINÁL" icon={<TerminalSquare size={17} />} onClose={() => togglePanel("W09")}><div className="terminal-warning"><Zap size={14} /> Termux bridge <button {...actionProps("C08", "terminal.shell.select")} className="select-chip" onClick={(event) => { event.stopPropagation(); setShell(value => value === "Bash" ? "Sh" : "Bash"); }}>{shell}<ChevronDown size={13} /></button></div><div className="terminal-output">{terminal.map((line, i) => <div key={`${line}-${i}`}>{line}</div>)}</div><div className="terminal-actions"><button {...actionProps("B31", "terminal.clear")} onClick={(event) => { event.stopPropagation(); setTerminal(["> terminal cleared"]); }}>Vyčistit</button><button {...actionProps("B32", "terminal.help")} onClick={(event) => { event.stopPropagation(); setCommand("help"); }}>help</button></div><div className="terminal-input"><span>›</span><input {...idProps("C21", "terminal.command.input")} value={command} onChange={e => setCommand(e.target.value)} onKeyDown={e => e.key === "Enter" && runCommand()} placeholder="help, status…" /><button {...actionProps("B15", "terminal.run")} onClick={(event) => { event.stopPropagation(); runCommand(); }}><Play size={14} /></button></div></Panel>}</div>
+
+      {!vrMode && openPanels.W12 && <Panel id="W12" focused={focusedPanel === "W12"} onFocus={() => setFocusedPanel("W12")} title="PAMĚŤ, SKILLY A SCHVÁLENÍ" icon={<Brain size={17} />} onClose={() => togglePanel("W12")}><MemoryPanel projectId={activeProjectId ?? ""} projectCwd={projectCwd} /></Panel>}
 
       <div className="environment-grid">{openPanels.W10 && <Panel id="W10" focused={focusedPanel === "W10"} onFocus={() => setFocusedPanel("W10")} title="Prostředí" icon={<Monitor size={17} />} onClose={() => togglePanel("W10")}><div className="environment-content"><div className="scene-preview"><SceneViewport eye={eye} /><span>3D SCÉNA · GLB</span></div><div className="environment-icon"><Monitor size={20} /></div><div className="environment-copy"><span>VR vývojové prostředí</span><small>InsaneServis · branch main · Android / WebXR</small><div className="vr-status-row"><span className="vr-badge ready">GLB renderer</span><span className="vr-badge">WebGL</span></div></div><div className="vr-actions"><button {...actionProps("B33", "vr.scene.open")} onClick={(event) => { event.stopPropagation(); setFocusedPanel("W10"); }}>Scéna</button><button {...actionProps("B34", "vr.build")} onClick={(event) => { event.stopPropagation(); void runWorkspaceCommand("Build", "pnpm check && pnpm build"); }}>Build</button></div></div></Panel>}{openPanels.W11 && <Panel id="W11" focused={focusedPanel === "W11"} onFocus={() => setFocusedPanel("W11")} title="Hlasové ovládání" icon={<Mic size={17} />} onClose={() => togglePanel("W11")}><div className="voice-content"><button {...actionProps("C43", "voice.toggle.secondary")} className={`voice-orb ${isListening ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleVoiceInput(); }}><Mic size={22} /></button><div><strong>{isListening ? "Poslouchám…" : "Řekněte příkaz"}</strong><small>Speech Recognition API; při nedostupnosti se zobrazí skutečná chyba</small></div></div></Panel>}</div>
 

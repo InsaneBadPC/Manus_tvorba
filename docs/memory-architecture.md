@@ -1,6 +1,6 @@
-# Architektura paměti a skillů (Fáze 1)
+# Architektura paměti, skillů a asistenta
 
-Stav: Fáze 1 a jádro Fáze 2 implementovány v `agent-memory/`, otestováno 34 testy, změřen výkon na 5 000 záznamech. Samoučení popisuje `docs/memory-phase2.md`.
+Stav: Fáze 1, 2 a jádro Fáze 3 jsou implementované v `agent-memory/`, otestované 43 testy a změřené na 5 000 záznamech. Samoučení, asistenta a Android vrstvu popisuje `docs/memory-phase2.md`.
 
 ## 1. Rozhodnutí
 
@@ -11,7 +11,7 @@ Paměťové jádro běží jako **Node/TypeScript proces v Termuxu**. Není to n
 - Node 24 má `node:sqlite` s FTS5 a na zařízení je změřený;
 - nativní modul by nešel v tomto prostředí zbuildit ani otestovat.
 
-APK zůstává tenký klient. Později se k němu přidá bridge nebo krátké Termux volání. Assistant smyčka, foreground service a UI patří do Fáze 2.
+APK zůstává tenký klient. Přes Termux bridge volá CLI (`ui`, `approve-skill`, `rebuild`) a WorkManager spouští konsolidaci. Assistant smyčka běží v Node procesu, ne v Java vrstvě.
 
 ## 2. Struktura
 
@@ -26,9 +26,12 @@ agent-memory/
     retrieval.ts      bezpečný FTS dotaz, ranking, rozpočet kontextu
     extract.ts        validace kandidátů, dedup, filtr tajemství
     skills.ts         SKILL.md, router, statistiky, schválení skriptů
-    adapters/         fake a Gemini
+    adapters/         fake, Gemini extrakce a Gemini chat
+    assistant/        smyčka, session, tools, approvals, process runner
+    script-runner.ts  spouštění hash-approved skriptů
+    curator.ts        povýšení starých epizod na fakta
     mcp.ts            stdio JSON-RPC server
-    cli.ts            sync/search/context/remember/skills/route/approve/mcp
+    cli.ts            sync/search/context/remember/skills/route/chat/ui/approve/mcp
 ```
 
 `agent-memory` neimportuje React, Capacitor ani server. Runtime závislosti jsou jen Node built-in moduly.
@@ -87,7 +90,7 @@ Skript se nesmí spustit, pokud:
 - manifest nemá `run-scripts` nebo `execute`;
 - aktuální hash souboru nemá záznam v `skill_approvals`.
 
-Změna skriptu hash změní a schválení tím propadne. Samotný runner skriptů není implementovaný; hotové je bezpečnostní hradlo `canRunScript()` a fronta schválení.
+Změna skriptu hash změní a schválení tím propadne. `runSkillScript()` vybírá interpret podle přípony, spouští bez shellu, s malým prostředím, timeoutem a limitem výstupu.
 
 ## 8. MCP nástroje
 
@@ -118,12 +121,19 @@ Limit 20 ms je splněn pro samotný index a retrieval. IPC přes Termux bridge s
 
 Úspěšné kroky se logují do `episodes` (+ FTS5). Detektor hledá opakované sekvence nástrojů ve třech relacích nebo dlouhou úspěšnou relaci a vytváří `draft` skill. Tělo draftu obsahuje jen názvy nástrojů a počty, nikdy volný text logů. Draft se musí schválit; `probation` se po třech úspěších povýší a po třech selháních vypne.
 
-Konsolidace se odmítne spustit bez `idle` a `charging`, synchronizuje index, zkontroluje integritu a maže epizody po 30 dnech.
+Konsolidace se odmítne spustit bez `idle` a `charging`, synchronizuje index, zkontroluje integritu a maže epizody po 30 dnech. Volitelný curator nejprve vytěží trvalá fakta; při jeho chybě se surové epizody nesmažou.
 
-## 11. Co záměrně chybí
+## 11. Asistent
 
-- Assistant klient a modelová smyčka — chybí nadřazená vrstva, ne paměť.
-- UI pro správu paměti, skillů a fronty schválení.
-- Android foreground service a WorkManager napojení na konsolidaci.
-- Spouštěč skriptů.
-- Embeddingy, vektorové hledání a `curator` sumarizace.
+`runAssistant()` používá jediný adaptér `ChatModelAdapter`. Gemini adaptér překládá neutrální tool schéma na function calling a podporuje fallback modely přes `GEMINI_MODELS`. Stav relace je v SQLite (`assistant_sessions`, `assistant_messages`), takže výměna modelu nezávisí na historii poskytovatele.
+
+Rizikové nástroje jdou přes `ApprovalGate`; aplikace zobrazí skutečné argumenty. Výstupy nástrojů jsou vždy označené jako nedůvěryhodná data. `write_file` zálohuje před přepsáním, `run_command` má timeout a limit výstupu, skripty vyžadují hash schválení.
+
+Android WorkManager spouští konsolidaci jen při nabíjení, device idle a dostatečné baterii. UI čte snapshot přes `cli.ts ui`.
+
+## 12. Co záměrně chybí
+
+- Foreground service pro dlouhé asistentské úlohy a streamování.
+- Editace paměti v UI a undo historie (zálohy souborů existují).
+- Embeddingy a vektorové hledání.
+- Automatické slučování duplicit; konsolidace je pouze reportuje.

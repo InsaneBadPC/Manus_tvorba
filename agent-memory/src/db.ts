@@ -13,7 +13,7 @@ import type { MemoryStore } from "./store.ts";
 
 export type MemoryDatabase = SqliteDatabase;
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export function databasePath(root: string): string {
   return path.join(root, "index.db");
@@ -114,6 +114,30 @@ export function migrate(db: MemoryDatabase): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS assistant_sessions (
+      id TEXT PRIMARY KEY,
+      project TEXT NOT NULL DEFAULT '',
+      agent TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      created TEXT NOT NULL,
+      updated TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS assistant_sessions_scope
+      ON assistant_sessions(project, agent, updated);
+
+    CREATE TABLE IF NOT EXISTS assistant_messages (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES assistant_sessions(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      tool_calls TEXT NOT NULL DEFAULT '[]',
+      tool_call_id TEXT,
+      name TEXT,
+      created TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS assistant_messages_session
+      ON assistant_messages(session_id, id);
   `);
   // Databases created before schema v2 lack episode metadata columns.
   const columns = new Set(

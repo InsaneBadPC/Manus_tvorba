@@ -1,7 +1,9 @@
 import { countEpisodes, pruneEpisodes } from "./episodes.ts";
 import { syncIndex } from "./db.ts";
 import { listReviewQueue, syncSkills } from "./skills.ts";
+import { curateOldEpisodes, type CuratorResult } from "./curator.ts";
 import type { MemoryContext } from "./context.ts";
+import type { ModelAdapter } from "./types.ts";
 
 export class ConsolidationBlockedError extends Error {
   constructor(message: string) {
@@ -15,6 +17,7 @@ export interface ConsolidationOptions {
   charging: boolean;
   retentionDays?: number;
   now?: Date;
+  curator?: ModelAdapter;
 }
 
 export interface ConsolidationReport {
@@ -23,6 +26,7 @@ export interface ConsolidationReport {
   memory: { indexed: number; errors: number };
   skills: { indexed: number; errors: number };
   episodes: { before: number; removed: number; after: number; retentionDays: number };
+  curated: CuratorResult;
   duplicates: Array<{ name: string; count: number }>;
   review: { draftSkills: number; scripts: number };
   integrity: string;
@@ -55,7 +59,15 @@ export async function consolidate(
   const memory = await syncIndex(ctx.db, ctx.store);
   const skills = await syncSkills(ctx.db, ctx.root);
   const before = countEpisodes(ctx.db);
-  const removed = pruneEpisodes(ctx.db, retentionDays, () => now);
+  const curated: CuratorResult = options.curator
+    ? await curateOldEpisodes(ctx, {
+        adapter: options.curator,
+        retentionDays,
+        now,
+      })
+    : { attempted: false, saved: [], skipped: 0 };
+  // Keep raw episodes when the curator was asked to summarize them but failed.
+  const removed = curated.error ? 0 : pruneEpisodes(ctx.db, retentionDays, () => now);
   const after = countEpisodes(ctx.db);
 
   const duplicates = ctx.db
@@ -82,6 +94,7 @@ export async function consolidate(
     },
     skills: { indexed: skills.added + skills.updated, errors: skills.errors.length },
     episodes: { before, removed, after, retentionDays },
+    curated,
     duplicates: duplicates.map((row) => ({ name: row.name, count: Number(row.n) })),
     review: { draftSkills: review.skills.length, scripts: review.scripts.length },
     integrity: integrityRow?.integrity_check ?? "unknown",

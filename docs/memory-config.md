@@ -15,8 +15,10 @@ Node 22 `node:sqlite` bez příznaku nenačte; CI je proto nastavené na Node 24
 | `AGENT_HOME` | kořen paměti a skillů | `~/.agent` |
 | `AGENT_PROJECT_ID` | aktuální projekt pro scope a viditelnost | žádný |
 | `AGENT_AGENT_ID` | aktuální agent | žádný |
-| `GEMINI_API_KEY` | klíč pro extrakci | žádný |
+| `GEMINI_API_KEY` | klíč pro extrakci, chat a curator | žádný |
 | `GEMINI_MODEL` | model pro extrakci | `gemini-2.5-flash` |
+| `GEMINI_MODELS` | chat modely a fallback v pořadí, čárkami | `gemini-2.5-flash` |
+| `GEMINI_TIMEOUT_MS` | timeout jednoho chat volání | `60000` |
 
 Klíč se nikdy nepředává jako argument příkazové řádky. Načti ho z trezoru do prostředí:
 
@@ -44,6 +46,11 @@ node agent-memory/src/cli.ts episodes --limit 20
 node agent-memory/src/cli.ts detect --dry-run
 node agent-memory/src/cli.ts outcome testing --failure
 node agent-memory/src/cli.ts consolidate --idle --charging --retention-days 30
+node agent-memory/src/cli.ts consolidate --idle --charging --curator
+node agent-memory/src/cli.ts chat "Zjisti, jak se spouštějí testy, a spusť je"
+node agent-memory/src/cli.ts chat "Pokračuj" --session cli --json
+node agent-memory/src/cli.ts sessions
+node agent-memory/src/cli.ts ui --project alpha
 node agent-memory/src/cli.ts rebuild
 node agent-memory/src/cli.ts mcp
 ```
@@ -59,7 +66,23 @@ Společné volby:
 
 `context` vypíše blok paměti na stdout a metriky (`chars`, `tokens~`, `ms`) na stderr.
 
-`consolidate` bez obou flagů `--idle` a `--charging` selže. Android je musí předat podle skutečného stavu zařízení; nejde je nahradit konstantou.
+`consolidate` bez obou flagů `--idle` a `--charging` selže. Android je předává podle skutečného stavu zařízení; nejde je nahradit konstantou.
+
+`chat` potřebuje `GEMINI_API_KEY`. Bez TTY se rizikové nástroje automaticky zamítnou; `--yes` použij jen v řízeném neinteraktivním běhu. `--json` vrací i tool cally a výsledky.
+
+`ui` vrací JSON snapshot paměti, skillů, schválení, relací a metrik pro Android obrazovku.
+
+## Chat modely a fallback
+
+Chat adaptér bere seznam z `GEMINI_MODELS`; první model je primární, další se zkusí při 429, 5xx, timeoutu nebo chybě sítě. Extrakce a curator používají `GEMINI_MODEL`. Vše model-specifické zůstává v `src/adapters/`, smyčka je na modelu nezávislá.
+
+```bash
+export GEMINI_MODELS="gemini-2.5-flash,gemini-2.0-flash"
+```
+
+## Android údržba
+
+WorkManager plánuje `MemoryMaintenanceWorker` s constraints `charging`, `device idle` a `battery not low`. Worker znovu zkontroluje nabíjení a vypnutý displej, najde `agent-memory/src/cli.ts` a spustí `consolidate --idle --charging`. Pokud je v Termuxu klíč, přidá `--curator`.
 
 ## MCP v Claude Code / jiném klientovi
 

@@ -355,3 +355,43 @@ EOF
 .agent-manage { border: 1px solid rgba(140,160,210,.2); border-radius: 6px; padding: 5px 7px; background: transparent; color: inherit; font-size: 10px; cursor: pointer; text-align: left; }
 .agent-manage.add { color: #8ff0bd; }.agent-manage.remove { color: #ff9e9e; }
 @media (max-width: 640px) { .project-bar { grid-template-columns: 1fr; } }
+
+/* Paměť a skilly: reálná data z lokálního indexu, ne ukázkové řádky. */
+.memory-panel { padding: 10px 13px 14px; }
+.memory-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.memory-stats { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; color: #8fb2c8; font-size: 10px; }
+.memory-stats span { display: inline-flex; align-items: center; gap: 4px; }
+.memory-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-left: auto; }
+.memory-tabs { margin-bottom: 9px; width: fit-content; }
+.count-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 3px; padding: 0 4px; border-radius: 999px; background: rgba(91,222,251,.2); color: #bff6ff; font-size: 9px; }
+.memory-alert { display: flex; align-items: flex-start; gap: 6px; margin: 7px 0; padding: 8px 9px; border: 1px solid rgba(115,190,230,.28); border-radius: 8px; background: rgba(9,39,67,.65); color: #a9cfe2; font-size: 10px; line-height: 1.4; }
+.memory-alert.error { border-color: rgba(255,126,126,.45); background: rgba(80,28,38,.55); color: #ffc0c0; }
+.memory-alert.ok { border-color: rgba(93,240,173,.4); background: rgba(16,68,55,.55); color: #b6ffd4; }
+.memory-columns { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.memory-list { display: flex; flex-direction: column; gap: 5px; min-height: 80px; max-height: 340px; overflow: auto; padding-right: 2px; }
+.memory-search { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid rgba(70,178,225,.3); border-radius: 8px; background: rgba(2,20,39,.6); color: #79a4bd; }
+.memory-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #dff7ff; font-size: 11px; }
+.memory-item { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 7px 8px; border: 1px solid rgba(70,178,225,.18); border-radius: 8px; background: rgba(7,31,58,.62); color: #d5edf8; text-align: left; cursor: pointer; }
+.memory-item:hover, .memory-item.selected { border-color: rgba(86,225,255,.62); background: rgba(14,79,120,.42); }
+.memory-item-title, .memory-item small, .memory-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memory-item-title { font-size: 11px; font-weight: 700; }
+.memory-item small { color: #8fb2c8; font-size: 10px; }
+.memory-meta { color: #668da6; font-size: 9px; }
+.memory-detail { min-height: 120px; padding: 8px; border: 1px solid rgba(70,178,225,.2); border-radius: 9px; background: rgba(3,22,42,.58); }
+.memory-detail-head strong, .memory-detail-head small { display: block; }
+.memory-detail-head strong { color: #effcff; font-size: 12px; }
+.memory-detail-head small { margin: 2px 0 6px; color: #668da6; font-size: 9px; }
+.memory-detail p { margin: 0 0 6px; color: #aacbdb; font-size: 11px; }
+.memory-detail pre { max-height: 240px; margin: 0; overflow: auto; color: #b9d9e8; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.memory-empty { padding: 12px 4px; color: #789bb2; font-size: 11px; }
+.skill-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid rgba(70,178,225,.18); border-radius: 8px; background: rgba(7,31,58,.62); }
+.skill-row-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.skill-row-main strong { color: #dff7ff; font-size: 11px; }
+.skill-row-main small { color: #8fb2c8; font-size: 10px; line-height: 1.35; }
+.skill-row-actions { display: flex; flex: 0 0 auto; gap: 4px; flex-wrap: wrap; }
+.status-badge { display: inline-block; padding: 2px 5px; border-radius: 999px; font-size: 8px; letter-spacing: .04em; background: rgba(255,184,92,.18); color: #ffd39a; }
+.status-badge.active { background: rgba(93,240,173,.18); color: #a9ffd0; }
+.status-badge.probation { background: rgba(91,222,251,.18); color: #bff6ff; }
+.status-badge.disabled { background: rgba(255,126,126,.18); color: #ffc0c0; }
+.tool-button.danger { border-color: rgba(255,126,126,.35); color: #ffb4b4; }
+@media (min-width: 700px) { .memory-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .memory-list { max-height: 380px; } }

@@ -18,8 +18,17 @@ import { detectSkills } from "./detector.ts";
 import { listEpisodes, logEpisode } from "./episodes.ts";
 import { consolidate } from "./consolidation.ts";
 import { createAdapterFromEnv } from "./adapters/gemini.ts";
+import { createChatAdapterFromEnv } from "./adapters/gemini-chat.ts";
 import { FakeAdapter } from "./adapters/fake.ts";
 import { runMcpServer } from "./mcp.ts";
+import { runAssistant } from "./assistant/loop.ts";
+import {
+  AutoApprovalGate,
+  CliApprovalGate,
+  DenyApprovalGate,
+} from "./assistant/approval.ts";
+import { listSessions } from "./assistant/session.ts";
+import { NodeProcessRunner } from "./assistant/process.ts";
 
 interface ParsedArgs {
   positional: string[];
@@ -79,6 +88,9 @@ Příkazy:
   detect                    navrhne draft skilly z opakovaných postupů
   outcome <skill>           zapíše úspěch/neúspěch (--failure)
   consolidate               údržba jen s --idle --charging
+  chat <zpráva>             asistentská smyčka s nástroji (Gemini)
+  sessions                  vypíše relace asistenta
+  ui                        stav paměti, skillů a fronty pro Android UI
   rebuild                   smaže a znovu postaví index
   mcp                       spustí MCP server na stdio
 
@@ -86,6 +98,10 @@ Společné volby:
   --root <cesta>            kořen agenta (výchozí ~/.agent)
   --project <id>            aktuální projekt
   --agent <id>              aktuální agent
+  --cwd <cesta>             pracovní složka pro nástroje (výchozí PWD)
+  --session <id>            relace asistenta (výchozí cli)
+  --yes                     automaticky schválit rizikové akce
+  --json                    vypsat strojový výsledek tahu
 `;
 
 async function main(): Promise<number> {
@@ -273,12 +289,133 @@ async function main(): Promise<number> {
       }
 
       case "consolidate": {
+        const curator =
+          parsed.flags.curator === "true" ? createAdapterFromEnv() : undefined;
+        if (parsed.flags.curator === "true" && !curator) {
+          throw new Error("consolidate --curator requires GEMINI_API_KEY");
+        }
         const report = await consolidate(ctx, {
           idle: parsed.flags.idle === "true",
           charging: parsed.flags.charging === "true",
           retentionDays: numberFlag(parsed.flags, "retention-days"),
+          ...(curator ? { curator } : {}),
         });
         print(report);
+        return 0;
+      }
+
+      case "chat": {
+        const text = rest.join(" ").trim();
+        if (!text) throw new Error("chat requires a message");
+        const chatAdapter = createChatAdapterFromEnv();
+        if (!chatAdapter) {
+          throw new Error(
+            "GEMINI_API_KEY is not set; chat needs a model adapter",
+          );
+        }
+        const cwd = parsed.flags.cwd ?? process.cwd();
+        const gate =
+          parsed.flags.yes === "true"
+            ? new AutoApprovalGate()
+            : process.stdin.isTTY
+              ? new CliApprovalGate()
+              : new DenyApprovalGate();
+        try {
+          const result = await runAssistant({
+            message: text,
+            ctx,
+            adapter: chatAdapter,
+            approval: gate,
+            projectCwd: cwd,
+            sessionId: parsed.flags.session ?? "cli",
+            agentId,
+            maxSteps: numberFlag(parsed.flags, "max-steps"),
+            processRunner: new NodeProcessRunner(),
+            extractor: createAdapterFromEnv(),
+            onEvent(event) {
+              if (parsed.flags.json === "true") return;
+              if (event.type === "tool") {
+                process.stderr.write(
+                  `[nástroj ${event.call.name}] ${event.outcome.isError ? "chyba" : "ok"}\n`,
+                );
+              } else if (event.type === "approval" && event.decision === "deny") {
+                process.stderr.write("[schválení] zamítnuto\n");
+              }
+            },
+          });
+          if (parsed.flags.json === "true") print(result);
+          else {
+            process.stdout.write(`${result.text}\n`);
+            if (result.remembered.length) {
+              process.stderr.write(`[paměť] uloženo: ${result.remembered.join(", ")}\n`);
+            }
+          }
+          return 0;
+        } finally {
+          if (gate instanceof CliApprovalGate) gate.close();
+        }
+      }
+
+      case "sessions": {
+        print(
+          listSessions(ctx.db, {
+            projectId: ctx.projectId,
+            agentId: ctx.agentId,
+            limit: numberFlag(parsed.flags, "limit"),
+          }),
+        );
+        return 0;
+      }
+
+      case "ui": {
+        const memory = ctx.db
+          .prepare(
+            `SELECT name, description, body, scope, scope_owner AS scopeOwner,
+                    path, pinned, tags, updated
+             FROM memory_items ORDER BY pinned DESC, updated DESC LIMIT 200`,
+          )
+          .all() as Array<Record<string, unknown>>;
+        const skills = await scanSkills(ctx.root);
+        const approvals = await listReviewQueue(ctx.db, ctx.root);
+        const sessions = listSessions(ctx.db, {
+          projectId: ctx.projectId,
+          agentId: ctx.agentId,
+          limit: 10,
+        });
+        const meta = Object.fromEntries(
+          (ctx.db.prepare("SELECT key, value FROM meta").all() as Array<{
+            key: string;
+            value: string;
+          }>).map((row) => [row.key, row.value]),
+        );
+        const episodeCount = Number(
+          (ctx.db.prepare("SELECT COUNT(*) AS n FROM episodes").get() as { n: number }).n,
+        );
+        print({
+          memory: memory.map((row) => ({
+            ...row,
+            tags: typeof row.tags === "string" ? row.tags.split(" ").filter(Boolean) : [],
+            pinned: row.pinned === 1,
+          })),
+          skills: skills.skills.map((skill) => ({
+            name: skill.manifest.name,
+            description: skill.manifest.description,
+            triggers: skill.manifest.triggers,
+            status: skill.manifest.status,
+            version: skill.manifest.version,
+            permissions: skill.manifest.permissions,
+            stats: getSkillStats(ctx.db, skill.manifest.name),
+            path: skill.relPath,
+          })),
+          skillErrors: skills.errors,
+          approvals,
+          sessions,
+          stats: {
+            memory: memory.length,
+            episodes: episodeCount,
+            lastConsolidation: meta.last_consolidation ?? null,
+          },
+        });
         return 0;
       }
 
