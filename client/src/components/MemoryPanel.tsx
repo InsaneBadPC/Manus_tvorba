@@ -3,16 +3,21 @@ import {
   AlertTriangle,
   Check,
   Database,
+  Pencil,
   RefreshCw,
+  Save,
   Search,
   ShieldCheck,
+  Trash2,
   Wrench,
   X,
 } from "lucide-react";
 import {
   approveSkillScript,
+  deleteMemory,
   memoryAction,
   readMemorySnapshot,
+  saveMemory,
   scheduleMemoryMaintenance,
   type MemorySnapshot,
 } from "@/lib/memory";
@@ -30,6 +35,8 @@ export function MemoryPanel({
   const [tab, setTab] = useState<Tab>("memory");
   const [query, setQuery] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", body: "", tags: "", pinned: false });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -77,6 +84,66 @@ export function MemoryPanel({
 
   const selected = snapshot?.memory.find((item) => item.path === selectedPath);
   const lastConsolidation = snapshot?.stats.lastConsolidation ?? null;
+
+  const selectItem = (item: MemorySnapshot["memory"][number]) => {
+    setSelectedPath(item.path);
+    setEditing(false);
+    setForm({
+      name: item.name,
+      description: item.description,
+      body: item.body,
+      tags: item.tags.join(", "),
+      pinned: item.pinned,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!selected) return;
+    setBusy(true);
+    setError("");
+    try {
+      const path = await saveMemory(
+        {
+          path: selected.path,
+          name: form.name,
+          description: form.description,
+          body: form.body,
+          scope: selected.scope,
+          scopeOwner: selected.scopeOwner,
+          pinned: form.pinned,
+          tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+        },
+        projectId,
+        projectCwd,
+      );
+      setSelectedPath(path);
+      setEditing(false);
+      setMessage("Záznam je uložený.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Uložení selhalo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeSelected = async () => {
+    if (!selected) return;
+    if (!window.confirm(`Smazat záznam „${selected.name}“?`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteMemory(selected.path, projectId, projectCwd);
+      setSelectedPath(null);
+      setEditing(false);
+      setMessage("Záznam je smazaný.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Smazání selhalo.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (!projectId) {
     return <div className="memory-empty">Vyber projekt. Paměť je viditelná pro jeho scope.</div>;
@@ -152,7 +219,7 @@ export function MemoryPanel({
               <button
                 key={item.path}
                 className={`memory-item ${selectedPath === item.path ? "selected" : ""}`}
-                onClick={() => setSelectedPath(item.path)}
+                onClick={() => selectItem(item)}
               >
                 <span className="memory-item-title">
                   {item.pinned ? "★ " : ""}
@@ -167,11 +234,63 @@ export function MemoryPanel({
             ))}
           </div>
           <div className="memory-detail">
-            {selected ? (
+            {selected ? editing ? (
+              <div className="memory-edit">
+                <label>
+                  Název
+                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                </label>
+                <label>
+                  Popis
+                  <input
+                    value={form.description}
+                    onChange={(event) => setForm({ ...form, description: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Tělo
+                  <textarea
+                    value={form.body}
+                    rows={8}
+                    onChange={(event) => setForm({ ...form, body: event.target.value })}
+                  />
+                </label>
+                <label>
+                  Tagy (čárkami)
+                  <input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} />
+                </label>
+                <label className="memory-check">
+                  <input
+                    type="checkbox"
+                    checked={form.pinned}
+                    onChange={(event) => setForm({ ...form, pinned: event.target.checked })}
+                  />
+                  Pinned (vždy v kontextu)
+                </label>
+                <div className="memory-detail-actions">
+                  <button className="primary-button" disabled={busy} onClick={() => void saveEdit()}>
+                    <Save size={13} /> Uložit
+                  </button>
+                  <button className="tool-button" disabled={busy} onClick={() => setEditing(false)}>
+                    Zrušit
+                  </button>
+                </div>
+              </div>
+            ) : (
               <>
                 <div className="memory-detail-head">
-                  <strong>{selected.name}</strong>
-                  <small>{selected.path} · {new Date(selected.updated).toLocaleString("cs-CZ")}</small>
+                  <div>
+                    <strong>{selected.name}</strong>
+                    <small>{selected.path} · {new Date(selected.updated).toLocaleString("cs-CZ")}</small>
+                  </div>
+                  <div className="memory-detail-actions">
+                    <button className="tool-button" disabled={busy} onClick={() => setEditing(true)}>
+                      <Pencil size={13} /> Upravit
+                    </button>
+                    <button className="tool-button danger" disabled={busy} onClick={() => void removeSelected()}>
+                      <Trash2 size={13} /> Smazat
+                    </button>
+                  </div>
                 </div>
                 <p>{selected.description}</p>
                 <pre>{selected.body || "(bez těla)"}</pre>

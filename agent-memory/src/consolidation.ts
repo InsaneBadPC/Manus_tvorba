@@ -2,6 +2,7 @@ import { countEpisodes, pruneEpisodes } from "./episodes.ts";
 import { syncIndex } from "./db.ts";
 import { listReviewQueue, syncSkills } from "./skills.ts";
 import { curateOldEpisodes, type CuratorResult } from "./curator.ts";
+import { mergeExactDuplicates, type DedupeResult } from "./dedupe.ts";
 import type { MemoryContext } from "./context.ts";
 import type { ModelAdapter } from "./types.ts";
 
@@ -18,6 +19,7 @@ export interface ConsolidationOptions {
   retentionDays?: number;
   now?: Date;
   curator?: ModelAdapter;
+  mergeDuplicates?: boolean;
 }
 
 export interface ConsolidationReport {
@@ -27,6 +29,7 @@ export interface ConsolidationReport {
   skills: { indexed: number; errors: number };
   episodes: { before: number; removed: number; after: number; retentionDays: number };
   curated: CuratorResult;
+  dedupe: DedupeResult;
   duplicates: Array<{ name: string; count: number }>;
   review: { draftSkills: number; scripts: number };
   integrity: string;
@@ -58,6 +61,9 @@ export async function consolidate(
 
   const memory = await syncIndex(ctx.db, ctx.store);
   const skills = await syncSkills(ctx.db, ctx.root);
+  const dedupe: DedupeResult = options.mergeDuplicates
+    ? await mergeExactDuplicates(ctx)
+    : { groups: [], removed: 0, kept: 0, errors: [] };
   const before = countEpisodes(ctx.db);
   const curated: CuratorResult = options.curator
     ? await curateOldEpisodes(ctx, {
@@ -95,6 +101,7 @@ export async function consolidate(
     skills: { indexed: skills.added + skills.updated, errors: skills.errors.length },
     episodes: { before, removed, after, retentionDays },
     curated,
+    dedupe,
     duplicates: duplicates.map((row) => ({ name: row.name, count: Number(row.n) })),
     review: { draftSkills: review.skills.length, scripts: review.scripts.length },
     integrity: integrityRow?.integrity_check ?? "unknown",

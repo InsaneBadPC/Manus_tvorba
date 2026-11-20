@@ -378,7 +378,15 @@ EOF
 .memory-item small { color: #8fb2c8; font-size: 10px; }
 .memory-meta { color: #668da6; font-size: 9px; }
 .memory-detail { min-height: 120px; padding: 8px; border: 1px solid rgba(70,178,225,.2); border-radius: 9px; background: rgba(3,22,42,.58); }
+.memory-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .memory-detail-head strong, .memory-detail-head small { display: block; }
+.memory-detail-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.memory-edit { display: flex; flex-direction: column; gap: 7px; }
+.memory-edit label { display: flex; flex-direction: column; gap: 3px; color: #8fb2c8; font-size: 9px; }
+.memory-edit input, .memory-edit textarea { width: 100%; border: 1px solid rgba(70,178,225,.35); border-radius: 7px; padding: 6px 7px; background: rgba(2,20,39,.72); color: #dff7ff; font: 11px/1.4 inherit; }
+.memory-edit textarea { resize: vertical; min-height: 80px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.memory-edit .memory-check { flex-direction: row; align-items: center; gap: 6px; }
+.memory-edit .memory-check input { width: auto; }
 .memory-detail-head strong { color: #effcff; font-size: 12px; }
 .memory-detail-head small { margin: 2px 0 6px; color: #668da6; font-size: 9px; }
 .memory-detail p { margin: 0 0 6px; color: #aacbdb; font-size: 11px; }

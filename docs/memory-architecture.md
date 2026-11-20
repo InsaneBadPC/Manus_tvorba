@@ -1,6 +1,6 @@
 # Architektura paměti, skillů a asistenta
 
-Stav: Fáze 1, 2 a jádro Fáze 3 jsou implementované v `agent-memory/`, otestované 43 testy a změřené na 5 000 záznamech. Samoučení, asistenta a Android vrstvu popisuje `docs/memory-phase2.md`.
+Stav: Fáze 1, 2 a jádro Fáze 3 jsou implementované v `agent-memory/`, otestované 44 testy a změřené na 5 000 záznamech. Samoučení, asistenta a Android vrstvu popisuje `docs/memory-phase2.md`.
 
 ## 1. Rozhodnutí
 
@@ -134,6 +134,6 @@ Android WorkManager spouští konsolidaci jen při nabíjení, device idle a dos
 ## 12. Co záměrně chybí
 
 - Foreground service pro dlouhé asistentské úlohy a streamování.
-- Editace paměti v UI a undo historie (zálohy souborů existují).
+- Undo historie pro editaci paměti (zálohy zapisovaných souborů existují).
 - Embeddingy a vektorové hledání.
-- Automatické slučování duplicit; konsolidace je pouze reportuje.
+- Slučování podobných záznamů s různým tělem; přesné duplicity umí `--merge-duplicates`.

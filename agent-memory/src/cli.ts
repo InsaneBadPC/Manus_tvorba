@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
-import { databasePath, syncIndex } from "./db.ts";
+import path from "node:path";
+import { databasePath, getByPath, removeItemByPath, syncIndex, upsertItem } from "./db.ts";
 import { openContext } from "./context.ts";
 import { remember } from "./extract.ts";
 import { buildContext, searchMemory } from "./retrieval.ts";
@@ -17,6 +19,7 @@ import {
 import { detectSkills } from "./detector.ts";
 import { listEpisodes, logEpisode } from "./episodes.ts";
 import { consolidate } from "./consolidation.ts";
+import { resolveInside } from "./paths.ts";
 import { createAdapterFromEnv } from "./adapters/gemini.ts";
 import { createChatAdapterFromEnv } from "./adapters/gemini-chat.ts";
 import { FakeAdapter } from "./adapters/fake.ts";
@@ -77,6 +80,8 @@ Příkazy:
   search <dotaz>            najde záznamy (--limit, --all)
   context <dotaz>           sestaví kontext do tahu (--limit)
   remember <text>           vytáhne a uloží trvalé záznamy (Gemini)
+  memory-save               uloží záznam z JSONu na stdin (--path pro editaci)
+  memory-delete <cesta>     smaže záznam paměti podle relativní cesty
   skills                    vypíše nainstalované skilly
   route <dotaz>             vybere skill pro zprávu
   approve <skill> <skript>  schválí konkrétní hash skriptu
@@ -193,6 +198,73 @@ async function main(): Promise<number> {
         return 0;
       }
 
+      case "memory-save": {
+        const raw = readFileSync(0, "utf8");
+        let payload: Record<string, unknown>;
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("JSON object expected");
+          }
+          payload = parsed as Record<string, unknown>;
+        } catch (error) {
+          throw new Error(
+            `memory-save: invalid JSON on stdin (${error instanceof Error ? error.message : String(error)})`,
+          );
+        }
+        const relPath = typeof payload.path === "string" ? payload.path.trim() : "";
+        const existing = relPath ? getByPath(ctx.db, relPath) : undefined;
+        if (relPath && !existing) throw new Error(`memory entry '${relPath}' not found`);
+        const text = (key: string, fallback: string): string =>
+          typeof payload[key] === "string" ? (payload[key] as string) : fallback;
+        const tags = Array.isArray(payload.tags)
+          ? payload.tags.filter((tag): tag is string => typeof tag === "string")
+          : existing?.tags ?? [];
+        const { file } = await ctx.store.save(
+          {
+            name: text("name", existing?.name ?? ""),
+            description: text("description", existing?.description ?? ""),
+            body: text("body", existing?.body ?? ""),
+            scope: (text("scope", existing?.scope ?? (projectId ? "project" : "global")) as
+              | "global"
+              | "project"
+              | "agent"),
+            scopeOwner: text("scopeOwner", existing?.scopeOwner ?? projectId ?? ""),
+            source: (text("source", existing?.source ?? "stated") as
+              | "stated"
+              | "inferred"
+              | "imported"),
+            confidence:
+              typeof payload.confidence === "number" ? payload.confidence : existing?.confidence ?? 0.8,
+            pinned: typeof payload.pinned === "boolean" ? payload.pinned : existing?.pinned ?? false,
+            tags,
+          },
+          relPath ? { path: relPath } : {},
+        );
+        upsertItem(ctx.db, file);
+        print({ saved: true, path: file.relPath, name: file.data.name });
+        return 0;
+      }
+
+      case "memory-delete": {
+        const relPath = rest.join(" ").trim();
+        if (!relPath) throw new Error("memory-delete requires a relative path");
+        const item = getByPath(ctx.db, relPath);
+        if (!item) throw new Error(`memory entry '${relPath}' not found`);
+        const backupRel = path.join(
+          "backups",
+          "deleted",
+          `${Date.now()}-${path.basename(relPath)}`,
+        );
+        const backupAbs = resolveInside(ctx.root, backupRel);
+        await fs.mkdir(path.dirname(backupAbs), { recursive: true });
+        await fs.copyFile(resolveInside(ctx.root, relPath), backupAbs);
+        await ctx.store.delete(relPath);
+        removeItemByPath(ctx.db, relPath);
+        print({ deleted: true, path: relPath, backup: backupRel });
+        return 0;
+      }
+
       case "skills": {
         const scan = await scanSkills(ctx.root);
         print({
@@ -298,6 +370,7 @@ async function main(): Promise<number> {
           idle: parsed.flags.idle === "true",
           charging: parsed.flags.charging === "true",
           retentionDays: numberFlag(parsed.flags, "retention-days"),
+          mergeDuplicates: parsed.flags["merge-duplicates"] === "true",
           ...(curator ? { curator } : {}),
         });
         print(report);

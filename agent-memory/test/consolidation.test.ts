@@ -82,6 +82,31 @@ describe("consolidation", () => {
     ctx.db.close();
   });
 
+  it("merges only exact duplicate memory files when asked", async () => {
+    const root = await makeRoot();
+    roots.push(root);
+    const ctx = await openContext({ root });
+    const input = {
+      name: "Stejný záznam",
+      description: "Stejný popis",
+      body: "stejné tělo",
+      scope: "global" as const,
+    };
+    await ctx.store.save(input, { path: "memory/global/dup-a.md" });
+    await ctx.store.save(input, { path: "memory/global/dup-b.md" });
+
+    const report = await consolidate(ctx, {
+      idle: true,
+      charging: true,
+      mergeDuplicates: true,
+    });
+
+    expect(report.dedupe.removed).toBe(1);
+    expect(report.dedupe.groups).toHaveLength(1);
+    expect(ctx.db.prepare("SELECT COUNT(*) AS n FROM memory_items").get()).toEqual({ n: 1 });
+    ctx.db.close();
+  });
+
   it("keeps raw episodes when the curator fails", async () => {
     const root = await makeRoot();
     roots.push(root);

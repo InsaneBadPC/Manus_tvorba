@@ -35,6 +35,8 @@ node agent-memory/src/cli.ts sync
 node agent-memory/src/cli.ts search "gradle release" --limit 5
 node agent-memory/src/cli.ts context "jak se staví APK"
 node agent-memory/src/cli.ts remember "Používáme pytest a coverage."
+node agent-memory/src/cli.ts memory-save --project alpha < entry.json
+node agent-memory/src/cli.ts memory-delete memory/projects/alpha/stary-zaznam.md --project alpha
 node agent-memory/src/cli.ts skills
 node agent-memory/src/cli.ts route "spusť testy"
 node agent-memory/src/cli.ts approve testing run.sh
@@ -46,7 +48,7 @@ node agent-memory/src/cli.ts episodes --limit 20
 node agent-memory/src/cli.ts detect --dry-run
 node agent-memory/src/cli.ts outcome testing --failure
 node agent-memory/src/cli.ts consolidate --idle --charging --retention-days 30
-node agent-memory/src/cli.ts consolidate --idle --charging --curator
+node agent-memory/src/cli.ts consolidate --idle --charging --curator --merge-duplicates
 node agent-memory/src/cli.ts chat "Zjisti, jak se spouštějí testy, a spusť je"
 node agent-memory/src/cli.ts chat "Pokračuj" --session cli --json
 node agent-memory/src/cli.ts sessions
@@ -62,6 +64,19 @@ Společné volby:
 --project alpha
 --agent coder
 --all          # search: i cizí scopes (jen pro diagnostiku)
+```
+
+`memory-save` čte JSON z stdin. Pro editaci přidej `path`; bez něj se záznam vytvoří nebo aktualizuje podle názvu. `memory-delete` přesune soubor nejdřív do `~/.agent/backups/deleted/`, takže smazání jde vrátit ručně.
+
+```json
+{
+  "name": "Testy pytestem",
+  "description": "Projekt používá pytest.",
+  "body": "pytest -q",
+  "scope": "project",
+  "pinned": false,
+  "tags": ["testy"]
+}
 ```
 
 `context` vypíše blok paměti na stdout a metriky (`chars`, `tokens~`, `ms`) na stderr.

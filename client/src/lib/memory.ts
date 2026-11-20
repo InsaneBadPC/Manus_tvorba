@@ -68,6 +68,53 @@ export async function memoryAction(
   return result.stdout.trim();
 }
 
+export type MemorySaveInput = {
+  path?: string;
+  name: string;
+  description: string;
+  body: string;
+  scope: string;
+  scopeOwner: string;
+  pinned: boolean;
+  tags: string[];
+};
+
+function base64Json(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/** Saves an edited entry through the same validation layer as CLI/MCP. */
+export async function saveMemory(
+  input: MemorySaveInput,
+  projectId: string,
+  projectCwd: string,
+): Promise<string> {
+  const encoded = base64Json(input);
+  const result = await runTermuxCommand(
+    `printf '%s' ${shellQuote(encoded)} | base64 -d | ${cliCommand(projectCwd, ["memory-save"], projectId)}`,
+    projectCwd,
+  );
+  if (!result.ok) throw new Error(result.stderr || result.reason || "Uložení paměti selhalo.");
+  const parsed = JSON.parse(result.stdout) as { path?: string };
+  return parsed.path ?? input.path ?? "";
+}
+
+export async function deleteMemory(
+  relPath: string,
+  projectId: string,
+  projectCwd: string,
+): Promise<string> {
+  const result = await runTermuxCommand(
+    cliCommand(projectCwd, ["memory-delete", relPath], projectId),
+    projectCwd,
+  );
+  if (!result.ok) throw new Error(result.stderr || result.reason || "Smazání paměti selhalo.");
+  return result.stdout.trim();
+}
+
 export async function approveSkillScript(
   skill: string,
   script: string,
