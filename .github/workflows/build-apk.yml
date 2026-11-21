@@ -3,6 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: ["**"]
+    tags: ["**"]
   workflow_dispatch:
 
 permissions:
