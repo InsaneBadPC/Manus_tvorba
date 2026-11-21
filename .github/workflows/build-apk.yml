@@ -55,7 +55,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Set build identity
-        run: echo "VITE_BUILD_SHA=${GITHUB_SHA}" > .env.production.local
+        run: |
+          echo "VITE_BUILD_SHA=${GITHUB_SHA}" > .env.production.local
+          echo "VERSION_NAME=1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=v1.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
       - name: Typecheck and unit tests
         run: pnpm check && pnpm test
@@ -73,7 +76,7 @@ jobs:
           INSANE_KEYSTORE_PASSWORD: ${{ secrets.INSANE_KEYSTORE_PASSWORD }}
           INSANE_KEY_ALIAS: ${{ secrets.INSANE_KEY_ALIAS }}
           INSANE_KEY_PASSWORD: ${{ secrets.INSANE_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --stacktrace -PversionName=1.0.${{ github.run_number }}
+        run: ./gradlew assembleRelease --stacktrace -PversionName="$VERSION_NAME"
 
       - name: Verify stable APK signature
         run: |
@@ -88,7 +91,7 @@ jobs:
       - name: Stage APK under the Orin name
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-release.apk "dist/orin-${GITHUB_RUN_NUMBER}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/orin-${VERSION_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -102,12 +105,13 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p release
-          cp "dist/orin-${GITHUB_RUN_NUMBER}.apk" release/orin.apk
+          cp "dist/orin-${VERSION_NAME}.apk" release/orin.apk
           SHA256=$(sha256sum release/orin.apk | cut -d' ' -f1)
           BADGING=$(${ANDROID_HOME}/build-tools/36.0.0/aapt2 dump badging release/orin.apk | head -1)
           VERSION_CODE=$(printf '%s' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           VERSION_NAME=$(printf '%s' "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
           echo "APK SHA-256: $SHA256, versionCode: $VERSION_CODE, versionName: $VERSION_NAME"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           cat > release/latest.json <<EOF
           {
             "app": "ai.insane.orin",
@@ -116,10 +120,11 @@ jobs:
             "run": "${GITHUB_RUN_NUMBER}",
             "versionCode": "${VERSION_CODE}",
             "versionName": "${VERSION_NAME}",
+            "tag": "${VERSION_TAG}",
             "sha256": "${SHA256}",
             "signature": "${APK_CERT_SHA256}",
             "apk": "https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/orin.apk",
-            "release": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/latest"
+            "release": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${VERSION_TAG}"
           }
           EOF
 
@@ -135,16 +140,41 @@ jobs:
             esac
           done
 
-      - name: Publish latest GitHub release
+      - name: Remove older versioned releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$VERSION_TAG" || true); do
+            echo "Removing older versioned release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
+
+      - name: Publish stable latest links
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Orin – latest build
-          body: Signed APK build from commit ${{ github.sha }}. Signature SHA-256 is pinned in android/EXPECTED_SIGNING_CERT_SHA256.
+          name: Orin ${{ env.VERSION_NAME }} – stable latest links
+          body: Orin ${{ env.VERSION_NAME }} (versionCode ${{ env.VERSION_CODE }}). Signed APK build from commit ${{ github.sha }}. Stable in-app update links point here; the versioned release is the primary entry.
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
+          files: |
+            release/orin.apk
+            release/latest.json
+
+      - name: Publish versioned GitHub release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          name: Orin ${{ env.VERSION_NAME }}
+          body: |
+            Orin ${{ env.VERSION_NAME }} (versionCode ${{ env.VERSION_CODE }}).
+            Signed APK built from commit ${{ github.sha }}. Signature SHA-256 is pinned in android/EXPECTED_SIGNING_CERT_SHA256.
           prerelease: false
           make_latest: true
           overwrite_files: true
           files: |
             release/orin.apk
-            release/latest.json
