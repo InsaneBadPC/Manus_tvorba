@@ -1,4 +1,4 @@
-package ai.insane.agentvr;
+package ai.insane.orin;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -97,7 +97,7 @@ public class AppUpdateBridgePlugin extends Plugin {
             try {
                 File downloads = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
                 if (downloads == null) throw new IllegalStateException("Downloads directory is unavailable");
-                apk = new File(downloads, "insane-ai-agent-latest.apk");
+                apk = new File(downloads, "orin-latest.apk");
 
                 connection = (HttpURLConnection) new URL(rawUrl).openConnection();
                 connection.setInstanceFollowRedirects(true);

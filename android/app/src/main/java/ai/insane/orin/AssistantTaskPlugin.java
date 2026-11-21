@@ -1,4 +1,4 @@
-package ai.insane.agentvr;
+package ai.insane.orin;
 
 import android.app.NotificationManager;
 import android.content.Context;

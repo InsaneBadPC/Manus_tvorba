@@ -1,4 +1,4 @@
-package ai.insane.agentvr;
+package ai.insane.orin;
 
 import android.content.Context;
 import android.content.Intent;

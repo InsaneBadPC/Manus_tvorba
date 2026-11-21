@@ -1,4 +1,4 @@
-package ai.insane.agentvr;
+package ai.insane.orin;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -25,8 +25,8 @@ import java.util.UUID;
  * a wake lock, and the result receiver persists bounded stdout/stderr.
  */
 public class AssistantTaskService extends Service {
-    public static final String ACTION_START = "ai.insane.agentvr.action.START_TASK";
-    public static final String ACTION_STOP = "ai.insane.agentvr.action.STOP_TASK";
+    public static final String ACTION_START = "ai.insane.orin.action.START_TASK";
+    public static final String ACTION_STOP = "ai.insane.orin.action.STOP_TASK";
     public static final String EXTRA_TASK_ID = "task_id";
     public static final String EXTRA_COMMAND = "command";
     public static final String EXTRA_CWD = "cwd";

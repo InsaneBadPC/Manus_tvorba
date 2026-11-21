@@ -110,7 +110,7 @@ jobs:
           echo "APK SHA-256: $SHA256, versionCode: $VERSION_CODE, versionName: $VERSION_NAME"
           cat > release/latest.json <<EOF
           {
-            "app": "ai.insane.agentvr",
+            "app": "ai.insane.orin",
             "name": "Orin",
             "build": "${GITHUB_SHA}",
             "run": "${GITHUB_RUN_NUMBER}",

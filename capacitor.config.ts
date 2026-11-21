@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "ai.insane.agentvr",
+  appId: "ai.insane.orin",
   appName: "Orin",
   webDir: "dist/public",
   server: {

@@ -12,10 +12,10 @@ def buildVersionName = (project.findProperty("versionName") ?: "1.0.${new Date()
 def signingStorePath = System.getenv("INSANE_KEYSTORE_PATH")
 
 android {
-    namespace = "ai.insane.agentvr"
+    namespace = "ai.insane.orin"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "ai.insane.agentvr"
+        applicationId "ai.insane.orin"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode buildVersionCode
