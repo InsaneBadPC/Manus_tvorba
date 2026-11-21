@@ -85,11 +85,16 @@ jobs:
           test "$CERT" = "$EXPECTED"
           echo "APK_CERT_SHA256=$CERT" >> "$GITHUB_ENV"
 
+      - name: Stage APK under the Orin name
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/orin-${GITHUB_RUN_NUMBER}.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: orin-release-apk-${{ github.sha }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: orin-apk-${{ github.run_number }}
+          path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -97,7 +102,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/release/app-release.apk release/orin.apk
+          cp "dist/orin-${GITHUB_RUN_NUMBER}.apk" release/orin.apk
           SHA256=$(sha256sum release/orin.apk | cut -d' ' -f1)
           BADGING=$(${ANDROID_HOME}/build-tools/36.0.0/aapt2 dump badging release/orin.apk | head -1)
           VERSION_CODE=$(printf '%s' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
