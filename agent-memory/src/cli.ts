@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
-import path from "node:path";
+import { backupExisting, listMemoryBackups, restoreMemoryBackup } from "./backups.ts";
 import { databasePath, getByPath, removeItemByPath, syncIndex, upsertItem } from "./db.ts";
 import { openContext } from "./context.ts";
 import { remember } from "./extract.ts";
-import { buildContext, searchMemory } from "./retrieval.ts";
+import { buildContext, buildContextSemantic, searchMemory, searchMemorySemantic, type ContextResult } from "./retrieval.ts";
+import type { MemoryHit } from "./types.ts";
+import { embeddingStatus, ensureEmbeddings } from "./embeddings.ts";
 import {
   approveDraftSkill,
   approveScript,
@@ -17,11 +19,12 @@ import {
   syncSkills,
 } from "./skills.ts";
 import { detectSkills } from "./detector.ts";
+import { approveMerge, listMergeProposals, proposeMerges, rejectMerge } from "./merges.ts";
 import { listEpisodes, logEpisode } from "./episodes.ts";
 import { consolidate } from "./consolidation.ts";
-import { resolveInside } from "./paths.ts";
 import { createAdapterFromEnv } from "./adapters/gemini.ts";
 import { createChatAdapterFromEnv } from "./adapters/gemini-chat.ts";
+import { createEmbeddingAdapterFromEnv } from "./adapters/gemini-embedding.ts";
 import { FakeAdapter } from "./adapters/fake.ts";
 import { runMcpServer } from "./mcp.ts";
 import { runAssistant } from "./assistant/loop.ts";
@@ -78,14 +81,21 @@ Použití:
 Příkazy:
   sync                      přeindexuje markdown paměť a skilly
   search <dotaz>            najde záznamy (--limit, --all)
-  context <dotaz>           sestaví kontext do tahu (--limit)
+  context <dotaz>           sestaví kontext do tahu (--limit, --semantic)
+  embed                     doplní vektorové embeddingy (--force)
   remember <text>           vytáhne a uloží trvalé záznamy (Gemini)
   memory-save               uloží záznam z JSONu na stdin (--path pro editaci)
   memory-delete <cesta>     smaže záznam paměti podle relativní cesty
+  memory-history [cesta]    vypíše zálohy paměti
+  memory-restore <záloha>   obnoví zálohu (--path cíl)
   skills                    vypíše nainstalované skilly
   route <dotaz>             vybere skill pro zprávu
   approve <skill> <skript>  schválí konkrétní hash skriptu
-  approvals                 vypíše drafty a neschválené skripty
+  approvals                 vypíše drafty, skripty a návrhy sloučení
+  propose-merges            kurátor navrhne sloučení podobných záznamů
+  merges                    vypíše návrhy sloučení
+  approve-merge <id>        schválí a provede sloučení
+  reject-merge <id>         zamítne návrh sloučení
   approve-skill <skill>     povýší draft na probation
   reject-skill <skill>      vypne draft
   episode <text>            zapíše epizodu (--kind, --session, --tools)
@@ -141,12 +151,20 @@ async function main(): Promise<number> {
       case "search": {
         const query = rest.join(" ").trim();
         if (!query) throw new Error("search requires a query");
-        const hits = searchMemory(ctx.db, query, {
+        const options = {
           projectId: ctx.projectId,
           agentId: ctx.agentId,
           allScopes: parsed.flags.all === "true",
           limit: numberFlag(parsed.flags, "limit"),
-        });
+        };
+        let hits: MemoryHit[];
+        if (parsed.flags.semantic === "true") {
+          const embeddings = createEmbeddingAdapterFromEnv();
+          if (!embeddings) throw new Error("search --semantic requires GEMINI_API_KEY");
+          hits = await searchMemorySemantic(ctx.db, query, embeddings, options);
+        } else {
+          hits = searchMemory(ctx.db, query, options);
+        }
         print(
           hits.map((hit) => ({
             name: hit.item.name,
@@ -164,15 +182,33 @@ async function main(): Promise<number> {
         const query = rest.join(" ").trim();
         if (!query) throw new Error("context requires a query");
         const limit = numberFlag(parsed.flags, "limit");
-        const result = buildContext(ctx.db, query, {
+        const options = {
           projectId: ctx.projectId,
           agentId: ctx.agentId,
           ...(limit ? { budget: { maxRecords: limit } } : {}),
-        });
+        };
+        let result: ContextResult;
+        if (parsed.flags.semantic === "true") {
+          const embeddings = createEmbeddingAdapterFromEnv();
+          if (!embeddings) throw new Error("context --semantic requires GEMINI_API_KEY");
+          result = await buildContextSemantic(ctx.db, query, embeddings, options);
+        } else {
+          result = buildContext(ctx.db, query, options);
+        }
         process.stdout.write(result.text);
         process.stderr.write(
           `chars=${result.chars} tokens~${result.estimatedTokens} ms=${result.elapsedMs.toFixed(1)}\n`,
         );
+        return 0;
+      }
+
+      case "embed": {
+        const adapter = createEmbeddingAdapterFromEnv();
+        if (!adapter) throw new Error("embed requires GEMINI_API_KEY");
+        const report = await ensureEmbeddings(ctx.db, adapter, {
+          force: parsed.flags.force === "true",
+        });
+        print({ ...report, status: await embeddingStatus(ctx.db, adapter) });
         return 0;
       }
 
@@ -251,17 +287,29 @@ async function main(): Promise<number> {
         if (!relPath) throw new Error("memory-delete requires a relative path");
         const item = getByPath(ctx.db, relPath);
         if (!item) throw new Error(`memory entry '${relPath}' not found`);
-        const backupRel = path.join(
-          "backups",
-          "deleted",
-          `${Date.now()}-${path.basename(relPath)}`,
-        );
-        const backupAbs = resolveInside(ctx.root, backupRel);
-        await fs.mkdir(path.dirname(backupAbs), { recursive: true });
-        await fs.copyFile(resolveInside(ctx.root, relPath), backupAbs);
+        const backup = await backupExisting(ctx.root, relPath);
         await ctx.store.delete(relPath);
         removeItemByPath(ctx.db, relPath);
-        print({ deleted: true, path: relPath, backup: backupRel });
+        print({ deleted: true, path: relPath, backup });
+        return 0;
+      }
+
+      case "memory-history": {
+        const relPath = rest.join(" ").trim() || undefined;
+        print({ backups: await listMemoryBackups(ctx.root, relPath) });
+        return 0;
+      }
+
+      case "memory-restore": {
+        const backup = rest.join(" ").trim();
+        if (!backup) throw new Error("memory-restore requires a backup path");
+        const target = await restoreMemoryBackup(
+          ctx.root,
+          backup,
+          parsed.flags.path,
+        );
+        upsertItem(ctx.db, await ctx.store.read(target));
+        print({ restored: true, path: target, backup });
         return 0;
       }
 
@@ -327,7 +375,39 @@ async function main(): Promise<number> {
       }
 
       case "approvals": {
-        print(await listReviewQueue(ctx.db, ctx.root));
+        print({
+          ...(await listReviewQueue(ctx.db, ctx.root)),
+          merges: listMergeProposals(ctx.db, { status: "pending" }),
+        });
+        return 0;
+      }
+
+      case "propose-merges": {
+        const adapter = createAdapterFromEnv();
+        if (!adapter) throw new Error("propose-merges requires GEMINI_API_KEY");
+        const proposals = await proposeMerges(ctx, adapter, {
+          limit: numberFlag(parsed.flags, "limit"),
+        });
+        print({ proposed: proposals.length, proposals });
+        return 0;
+      }
+
+      case "merges": {
+        print({ proposals: listMergeProposals(ctx.db, { limit: numberFlag(parsed.flags, "limit") }) });
+        return 0;
+      }
+
+      case "approve-merge": {
+        const id = Number(rest[0]);
+        if (!Number.isInteger(id)) throw new Error("approve-merge requires a numeric proposal id");
+        print(await approveMerge(ctx, id));
+        return 0;
+      }
+
+      case "reject-merge": {
+        const id = Number(rest[0]);
+        if (!Number.isInteger(id)) throw new Error("reject-merge requires a numeric proposal id");
+        print(rejectMerge(ctx.db, id));
         return 0;
       }
 
@@ -372,6 +452,9 @@ async function main(): Promise<number> {
           retentionDays: numberFlag(parsed.flags, "retention-days"),
           mergeDuplicates: parsed.flags["merge-duplicates"] === "true",
           ...(curator ? { curator } : {}),
+          ...(parsed.flags["propose-merges"] === "true" && curator
+            ? { mergeAdapter: curator }
+            : {}),
         });
         print(report);
         return 0;
@@ -405,6 +488,7 @@ async function main(): Promise<number> {
             maxSteps: numberFlag(parsed.flags, "max-steps"),
             processRunner: new NodeProcessRunner(),
             extractor: createAdapterFromEnv(),
+            embeddingAdapter: createEmbeddingAdapterFromEnv(),
             onEvent(event) {
               if (parsed.flags.json === "true") return;
               if (event.type === "tool") {
@@ -481,7 +565,7 @@ async function main(): Promise<number> {
             path: skill.relPath,
           })),
           skillErrors: skills.errors,
-          approvals,
+          approvals: { ...approvals, merges: listMergeProposals(ctx.db, { status: "pending" }) },
           sessions,
           stats: {
             memory: memory.length,

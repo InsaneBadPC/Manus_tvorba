@@ -1,4 +1,5 @@
 import { queryMemory, type MemoryDatabase } from "./db.ts";
+import { embedQuery, ensureEmbeddings, semanticSearch, type EmbeddingAdapter } from "./embeddings.ts";
 import { DEFAULT_BUDGET, type Budget, type MemoryHit, type MemoryItem } from "./types.ts";
 import { slugify } from "./paths.ts";
 
@@ -111,12 +112,20 @@ export function buildContext(
   query: string,
   options: SearchOptions & { budget?: Partial<Budget> } = {},
 ): ContextResult {
-  const started = performance.now();
   const budget: Budget = { ...DEFAULT_BUDGET, ...options.budget };
   const hits = searchMemory(db, query, {
     ...options,
     limit: Math.max(budget.maxRecords * 3, 10),
   });
+  return buildContextFromHits(hits, budget);
+}
+
+/** Formats already-ranked hits; used by both FTS and semantic context. */
+export function buildContextFromHits(
+  hits: MemoryHit[],
+  budget: Budget = DEFAULT_BUDGET,
+  started = performance.now(),
+): ContextResult {
   if (hits.length === 0) {
     return {
       text: "",
@@ -182,4 +191,70 @@ export function buildContext(
     estimatedTokens: Math.ceil(text.length / 4),
     elapsedMs: performance.now() - started,
   };
+}
+
+export interface SemanticSearchOptions extends SearchOptions {
+  minCosine?: number;
+  ensure?: boolean;
+}
+
+/**
+ * Hybrid retrieval: FTS keeps exact names and terms, vectors add paraphrases.
+ * Both use the same scope filter. Without embeddings the caller should use FTS.
+ */
+export async function searchMemorySemantic(
+  db: MemoryDatabase,
+  query: string,
+  adapter: EmbeddingAdapter,
+  options: SemanticSearchOptions = {},
+): Promise<MemoryHit[]> {
+  const limit = Math.max(1, Math.min(50, options.limit ?? 8));
+  if (options.ensure !== false) {
+    await ensureEmbeddings(db, adapter);
+  }
+  const vector = await embedQuery(adapter, query);
+  const fts = searchMemory(db, query, { ...options, limit: limit * 4 });
+  const semantic = semanticSearch(db, vector, adapter.name, {
+    projectId: options.projectId,
+    agentId: options.agentId,
+    allScopes: options.allScopes,
+    minCosine: options.minCosine,
+    now: options.now,
+    limit: limit * 4,
+  });
+  if (fts.length === 0 && semantic.length === 0) return [];
+
+  const merged = new Map<string, MemoryHit>();
+  for (const hit of fts) merged.set(hit.item.relPath, { ...hit });
+  for (const hit of semantic) {
+    const previous = merged.get(hit.item.relPath);
+    if (previous) {
+      previous.score = Math.max(previous.score, hit.score) + Math.min(previous.score, hit.score) * 0.35;
+      previous.rank = Math.min(previous.rank, hit.rank);
+    } else {
+      merged.set(hit.item.relPath, hit);
+    }
+  }
+
+  const unique = new Map<string, MemoryHit>();
+  for (const hit of [...merged.values()].sort((a, b) => b.score - a.score)) {
+    const slug = slugify(hit.item.name);
+    if (!unique.has(slug)) unique.set(slug, hit);
+  }
+  return [...unique.values()].slice(0, limit);
+}
+
+export async function buildContextSemantic(
+  db: MemoryDatabase,
+  query: string,
+  adapter: EmbeddingAdapter,
+  options: SearchOptions & { budget?: Partial<Budget>; minCosine?: number } = {},
+): Promise<ContextResult> {
+  const started = performance.now();
+  const budget: Budget = { ...DEFAULT_BUDGET, ...options.budget };
+  const hits = await searchMemorySemantic(db, query, adapter, {
+    ...options,
+    limit: Math.max(budget.maxRecords * 3, 10),
+  });
+  return buildContextFromHits(hits, budget, started);
 }

@@ -13,6 +13,8 @@ React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user t
 
 ```bash
 node agent-memory/src/cli.ts context "jak se staví APK"
+node agent-memory/src/cli.ts context "jak se staví APK" --semantic
+node agent-memory/src/cli.ts memory-history
 node agent-memory/src/cli.ts chat "Zjisti, jak se spouštějí testy, a spusť je"
 node agent-memory/src/cli.ts ui --project manus_tvorba
 ```

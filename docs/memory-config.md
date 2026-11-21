@@ -18,7 +18,9 @@ Node 22 `node:sqlite` bez příznaku nenačte; CI je proto nastavené na Node 24
 | `GEMINI_API_KEY` | klíč pro extrakci, chat a curator | žádný |
 | `GEMINI_MODEL` | model pro extrakci | `gemini-2.5-flash` |
 | `GEMINI_MODELS` | chat modely a fallback v pořadí, čárkami | `gemini-2.5-flash` |
-| `GEMINI_TIMEOUT_MS` | timeout jednoho chat volání | `60000` |
+| `GEMINI_TIMEOUT_MS` | timeout jednoho chat nebo embedding volání | `60000` |
+| `GEMINI_EMBED_MODEL` | model pro embeddingy | `gemini-embedding-001` |
+| `GEMINI_EMBED_DIM` | dimenze vektoru (64–3072) | `768` |
 
 Klíč se nikdy nepředává jako argument příkazové řádky. Načti ho z trezoru do prostředí:
 
@@ -33,10 +35,20 @@ Spouštěj z kořene repozitáře:
 ```bash
 node agent-memory/src/cli.ts sync
 node agent-memory/src/cli.ts search "gradle release" --limit 5
+node agent-memory/src/cli.ts search "gradle release" --semantic
 node agent-memory/src/cli.ts context "jak se staví APK"
+node agent-memory/src/cli.ts context "jak se staví APK" --semantic
+node agent-memory/src/cli.ts embed
+node agent-memory/src/cli.ts embed --force
 node agent-memory/src/cli.ts remember "Používáme pytest a coverage."
 node agent-memory/src/cli.ts memory-save --project alpha < entry.json
 node agent-memory/src/cli.ts memory-delete memory/projects/alpha/stary-zaznam.md --project alpha
+node agent-memory/src/cli.ts memory-history memory/projects/alpha/stary-zaznam.md
+node agent-memory/src/cli.ts memory-restore backups/memory/2026-11-21T04-00-00-000Z/memory/projects/alpha/stary-zaznam.md
+node agent-memory/src/cli.ts propose-merges
+node agent-memory/src/cli.ts merges
+node agent-memory/src/cli.ts approve-merge 3
+node agent-memory/src/cli.ts reject-merge 3
 node agent-memory/src/cli.ts skills
 node agent-memory/src/cli.ts route "spusť testy"
 node agent-memory/src/cli.ts approve testing run.sh
@@ -66,7 +78,9 @@ Společné volby:
 --all          # search: i cizí scopes (jen pro diagnostiku)
 ```
 
-`memory-save` čte JSON z stdin. Pro editaci přidej `path`; bez něj se záznam vytvoří nebo aktualizuje podle názvu. `memory-delete` přesune soubor nejdřív do `~/.agent/backups/deleted/`, takže smazání jde vrátit ručně.
+`memory-save` čte JSON z stdin. Pro editaci přidej `path`; bez něj se záznam vytvoří nebo aktualizuje podle názvu. Každý přepis i smazání nejdřív zkopíruje soubor do `~/.agent/backups/memory/<timestamp>/`; `memory-history` vypíše zálohy a `memory-restore <záloha>` je vrátí (volitelně s `--path`).
+
+`propose-merges` projde záznamy se stejným jménem a jiným tělem a uloží pouze návrhy. Teprve `approve-merge <id>` zapíše sloučený obsah a odstraní zbylé soubory; každý z nich se předtím zazálohuje. UI používá stejný tok přes `cli.ts ui` a příkazy `approve-merge`/`reject-merge`.
 
 ```json
 {
@@ -85,6 +99,8 @@ Společné volby:
 
 `chat` potřebuje `GEMINI_API_KEY`. Bez TTY se rizikové nástroje automaticky zamítnou; `--yes` použij jen v řízeném neinteraktivním běhu. `--json` vrací i tool cally a výsledky.
 
+`embed` a `--semantic` také potřebují `GEMINI_API_KEY`. `embed` doplní jen chybějící vektory pro aktuální model a dimenzi; `--force` je přepočítá. Při změně `GEMINI_EMBED_MODEL` nebo `GEMINI_EMBED_DIM` se staré vektory nepoužijí a je potřeba znovu spustit `embed`.
+
 `ui` vrací JSON snapshot paměti, skillů, schválení, relací a metrik pro Android obrazovku.
 
 ## Chat modely a fallback
@@ -97,7 +113,9 @@ export GEMINI_MODELS="gemini-2.5-flash,gemini-2.0-flash"
 
 ## Android údržba
 
-WorkManager plánuje `MemoryMaintenanceWorker` s constraints `charging`, `device idle` a `battery not low`. Worker znovu zkontroluje nabíjení a vypnutý displej, najde `agent-memory/src/cli.ts` a spustí `consolidate --idle --charging`. Pokud je v Termuxu klíč, přidá `--curator`.
+WorkManager plánuje `MemoryMaintenanceWorker` s constraints `charging`, `device idle` a `battery not low`. Worker znovu zkontroluje nabíjení a vypnutý displej, najde `agent-memory/src/cli.ts` a spustí `consolidate --idle --charging`. Pokud je v Termuxu klíč, přidá `--curator` a `--propose-merges`.
+
+Dlouhé chatové příkazy lze v UI přepnout na „Na pozadí“. `AssistantTaskService` typu `dataSync` drží wake lock a notifikaci, spustí příkaz přes Termux a výsledek uloží do `cacheDir/assistant-tasks/<taskId>.log`. Android 13+ si vyžádá `POST_NOTIFICATIONS`; bez povolení služba běží, ale notifikace nemusí být vidět.
 
 ## MCP v Claude Code / jiném klientovi
 

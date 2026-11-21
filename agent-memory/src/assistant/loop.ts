@@ -1,6 +1,6 @@
 import { remember } from "../extract.ts";
 import { logEpisode } from "../episodes.ts";
-import { buildContext } from "../retrieval.ts";
+import { buildContext, buildContextSemantic, type ContextResult } from "../retrieval.ts";
 import { recordSkillOutcome, routeSkill } from "../skills.ts";
 import { appendMessage, ensureSession, loadMessages } from "./session.ts";
 import { ASSISTANT_TOOLS, toolSchemas, toolsByName } from "./tools.ts";
@@ -122,10 +122,20 @@ export async function runAssistant(
   };
   appendMessage(options.ctx.db, sessionId, userMessage);
 
-  const context = buildContext(options.ctx.db, message, {
-    projectId,
-    agentId,
-  });
+  let context: ContextResult;
+  if (options.embeddingAdapter) {
+    try {
+      context = await buildContextSemantic(options.ctx.db, message, options.embeddingAdapter, {
+        projectId,
+        agentId,
+      });
+    } catch {
+      // Missing API/key or a partial index must not block a normal turn.
+      context = buildContext(options.ctx.db, message, { projectId, agentId });
+    }
+  } else {
+    context = buildContext(options.ctx.db, message, { projectId, agentId });
+  }
   const routed = routeSkill(options.ctx.db, message, { limit: 1 })[0];
   const skillBlock = routed
     ? `\n\n## Postup (skill ${routed.skill.manifest.name})\n${routed.skill.body.slice(0, MAX_SKILL_CHARS)}`

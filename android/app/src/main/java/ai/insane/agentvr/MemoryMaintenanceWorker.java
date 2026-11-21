@@ -45,7 +45,7 @@ public class MemoryMaintenanceWorker extends Worker {
             "fi; " +
             "if [ -z \"$CLI\" ]; then exit 3; fi; " +
             "EXTRA=\"\"; " +
-            "if [ -n \"$GEMINI_API_KEY\" ] || [ -n \"$GOOGLE_API_KEY\" ]; then EXTRA=\"--curator\"; fi; " +
+            "if [ -n \"$GEMINI_API_KEY\" ] || [ -n \"$GOOGLE_API_KEY\" ]; then EXTRA=\"--curator --propose-merges\"; fi; " +
             "node \"$CLI\" consolidate --idle --charging --retention-days 30 --merge-duplicates $EXTRA";
 
         boolean sent = TermuxCommandSender.send(context, command, TERMUX_HOME);

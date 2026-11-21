@@ -3,8 +3,9 @@ import { syncIndex } from "./db.ts";
 import { listReviewQueue, syncSkills } from "./skills.ts";
 import { curateOldEpisodes, type CuratorResult } from "./curator.ts";
 import { mergeExactDuplicates, type DedupeResult } from "./dedupe.ts";
+import { proposeMerges, type MergeProposal } from "./merges.ts";
 import type { MemoryContext } from "./context.ts";
-import type { ModelAdapter } from "./types.ts";
+import type { MergeAdapter, ModelAdapter } from "./types.ts";
 
 export class ConsolidationBlockedError extends Error {
   constructor(message: string) {
@@ -20,6 +21,7 @@ export interface ConsolidationOptions {
   now?: Date;
   curator?: ModelAdapter;
   mergeDuplicates?: boolean;
+  mergeAdapter?: MergeAdapter;
 }
 
 export interface ConsolidationReport {
@@ -30,8 +32,9 @@ export interface ConsolidationReport {
   episodes: { before: number; removed: number; after: number; retentionDays: number };
   curated: CuratorResult;
   dedupe: DedupeResult;
+  mergeProposals: MergeProposal[];
   duplicates: Array<{ name: string; count: number }>;
-  review: { draftSkills: number; scripts: number };
+  review: { draftSkills: number; scripts: number; mergeProposals: number };
   integrity: string;
 }
 
@@ -64,6 +67,9 @@ export async function consolidate(
   const dedupe: DedupeResult = options.mergeDuplicates
     ? await mergeExactDuplicates(ctx)
     : { groups: [], removed: 0, kept: 0, errors: [] };
+  const mergeProposals = options.mergeAdapter
+    ? await proposeMerges(ctx, options.mergeAdapter)
+    : [];
   const before = countEpisodes(ctx.db);
   const curated: CuratorResult = options.curator
     ? await curateOldEpisodes(ctx, {
@@ -102,8 +108,13 @@ export async function consolidate(
     episodes: { before, removed, after, retentionDays },
     curated,
     dedupe,
+    mergeProposals,
     duplicates: duplicates.map((row) => ({ name: row.name, count: Number(row.n) })),
-    review: { draftSkills: review.skills.length, scripts: review.scripts.length },
+    review: {
+      draftSkills: review.skills.length,
+      scripts: review.scripts.length,
+      mergeProposals: mergeProposals.length,
+    },
     integrity: integrityRow?.integrity_check ?? "unknown",
   };
 

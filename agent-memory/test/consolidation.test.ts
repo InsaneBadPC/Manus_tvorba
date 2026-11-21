@@ -45,7 +45,7 @@ describe("consolidation", () => {
     expect(report.episodes.before).toBe(2);
     expect(report.episodes.removed).toBe(1);
     expect(countEpisodes(ctx.db)).toBe(1);
-    expect(report.review).toEqual({ draftSkills: 0, scripts: 0 });
+    expect(report.review).toEqual({ draftSkills: 0, scripts: 0, mergeProposals: 0 });
     ctx.db.close();
   });
 

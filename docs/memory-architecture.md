@@ -1,6 +1,6 @@
 # Architektura paměti, skillů a asistenta
 
-Stav: Fáze 1, 2 a jádro Fáze 3 jsou implementované v `agent-memory/`, otestované 44 testy a změřené na 5 000 záznamech. Samoučení, asistenta a Android vrstvu popisuje `docs/memory-phase2.md`.
+Stav: Fáze 1, 2 a 3 jsou implementované v `agent-memory/`, otestované 48 testy a změřené na 5 000 záznamech. Samoučení, asistenta, zálohy, embeddingy a Android vrstvu popisuje `docs/memory-phase2.md`.
 
 ## 1. Rozhodnutí
 
@@ -22,7 +22,10 @@ agent-memory/
     frontmatter.ts    plochý YAML subset, žádné nested mapy
     paths.ts          ~/.agent, scope cesty, ochrana proti traversal
     store.ts          atomický zápis markdownu, přejmenování, mazání
-    db.ts             SQLite schéma, migrace, FTS5, hash sync
+    backups.ts        záloha před přepisem/smazáním, historie a obnova
+    db.ts             SQLite schéma, migrace, FTS5, hash sync, embeddingy
+    embeddings.ts     dávkové embeddingy, vektorové a hybridní hledání
+    merges.ts         návrhy sloučení podobných záznamů a jejich schválení
     retrieval.ts      bezpečný FTS dotaz, ranking, rozpočet kontextu
     extract.ts        validace kandidátů, dedup, filtr tajemství
     skills.ts         SKILL.md, router, statistiky, schválení skriptů
@@ -45,10 +48,13 @@ agent-memory/
     projects/<project-id>/<slug>.md
     agents/<agent-id>/<slug>.md
   skills/<slug>/SKILL.md
+  backups/memory/<timestamp>/<původní cesta>.md
   index.db
 ```
 
 Markdown je zdroj pravdy. `index.db` je odvozený a smí se kdykoli smazat; `sync` ho postaví znovu. Každý soubor má hash; sync přeindexuje jen změněné a smaže chybějící.
+
+Před každým přepsáním nebo smazáním se existující soubor zkopíruje do `backups/memory/<timestamp>/`. Historie se čte přes `memory-history`, obnova přes `memory-restore`; zálohy se needitují a do indexu se nepočítají.
 
 Frontmatter je plochý: `name`, `description`, `scope`, `scope_owner`, `source`, `confidence`, `pinned`, `tags`, `created`, `updated`.
 
@@ -80,6 +86,8 @@ Model nikdy nezapisuje soubory přímo. `memory_write` z MCP prochází stejnou 
 - max. 1 200 znaků pro pinned část.
 
 Výstup je jen seznam faktů, ne instrukce. Vložený text z paměti nesmí měnit systémový prompt.
+
+Volitelně lze zapnout sémantické hledání. `embed` doplní chybějící vektory přes Gemini `batchEmbedContents`; vektory jsou float32 BLOB v `memory_embeddings` a nesou název modelu i dimenzi, takže změna modelu staré vektory invaliduje. `search --semantic` a `context --semantic` kombinují vektorové skóre s FTS; bez klíče nebo při chybě API se vrací čistě FTS výsledek.
 
 ## 7. Skilly
 
@@ -131,9 +139,15 @@ Rizikové nástroje jdou přes `ApprovalGate`; aplikace zobrazí skutečné argu
 
 Android WorkManager spouští konsolidaci jen při nabíjení, device idle a dostatečné baterii. UI čte snapshot přes `cli.ts ui`.
 
-## 12. Co záměrně chybí
+Dlouhé příkazy z chatu může Android spustit přes `AssistantTaskService` s `foregroundServiceType="dataSync"`. Služba drží wake lock, zobrazí notifikaci a předá Termuxu `PendingIntent`; výsledek se uloží do `cacheDir/assistant-tasks/` a přečte po dokončení. Termux zůstává vlastníkem procesu a výstup se do UI dostane po dokončení, ne po tokenech.
 
-- Foreground service pro dlouhé asistentské úlohy a streamování.
-- Undo historie pro editaci paměti (zálohy zapisovaných souborů existují).
-- Embeddingy a vektorové hledání.
-- Slučování podobných záznamů s různým tělem; přesné duplicity umí `--merge-duplicates`.
+## 12. Slučování a undo
+
+Přesné duplicity (stejné jméno, popis i tělo) se mažou deterministicky při konsolidaci s `--merge-duplicates` a před smazáním se zálohují. Podobné záznamy se stejným jménem, ale jiným tělem vytvářejí pouze `pending` návrh v `memory_merge_proposals`; kurátor navrhne sloučené znění, ale soubory se nezmění, dokud uživatel nezavolá `approve-merge` nebo neklikne v UI. `reject-merge` návrh pouze uzavře.
+
+## 13. Záměrné limity
+
+- Foreground služba není streamovací transport; průběžný výstup zůstává v Termuxu a do aplikace se dostane jako výsledek.
+- Automaticky se schvaluje jen přesná duplicita; podobné záznamy vždy čekají na člověka.
+- Bez `GEMINI_API_KEY` nejsou embeddingy ani sémantické hledání dostupné; FTS zůstává funkční.
+- Android APK nikdy nespouští shell přímo, pouze přes Termux `RUN_COMMAND`.

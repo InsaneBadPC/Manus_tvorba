@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   Check,
   Database,
+  History,
   Pencil,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   ShieldCheck,
@@ -16,9 +18,13 @@ import {
   approveSkillScript,
   deleteMemory,
   memoryAction,
+  memoryHistory,
+  mergeAction,
   readMemorySnapshot,
+  restoreMemoryBackup,
   saveMemory,
   scheduleMemoryMaintenance,
+  type MemoryBackup,
   type MemorySnapshot,
 } from "@/lib/memory";
 
@@ -37,6 +43,8 @@ export function MemoryPanel({
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", body: "", tags: "", pinned: false });
+  const [backups, setBackups] = useState<MemoryBackup[]>([]);
+  const [deletedBackup, setDeletedBackup] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -85,9 +93,19 @@ export function MemoryPanel({
   const selected = snapshot?.memory.find((item) => item.path === selectedPath);
   const lastConsolidation = snapshot?.stats.lastConsolidation ?? null;
 
+  const loadBackups = async (relPath: string) => {
+    try {
+      setBackups(await memoryHistory(relPath, projectId, projectCwd));
+    } catch {
+      setBackups([]);
+    }
+  };
+
   const selectItem = (item: MemorySnapshot["memory"][number]) => {
     setSelectedPath(item.path);
+    setDeletedBackup(null);
     setEditing(false);
+    void loadBackups(item.path);
     setForm({
       name: item.name,
       description: item.description,
@@ -133,13 +151,32 @@ export function MemoryPanel({
     setBusy(true);
     setError("");
     try {
-      await deleteMemory(selected.path, projectId, projectCwd);
+      const result = await deleteMemory(selected.path, projectId, projectCwd);
+      setDeletedBackup(result.backup ?? null);
       setSelectedPath(null);
+      setBackups([]);
       setEditing(false);
-      setMessage("Záznam je smazaný.");
+      setMessage(result.backup ? "Záznam je smazaný; zálohu můžeš vrátit." : "Záznam je smazaný.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Smazání selhalo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const restore = async (backup: string, target?: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const path = await restoreMemoryBackup(backup, target, projectId, projectCwd);
+      setSelectedPath(path);
+      setDeletedBackup(null);
+      setMessage("Záloha je obnovená.");
+      await load();
+      await loadBackups(path);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Obnovení selhalo.");
     } finally {
       setBusy(false);
     }
@@ -192,13 +229,23 @@ export function MemoryPanel({
         <button className={tab === "approvals" ? "active" : ""} onClick={() => setTab("approvals")}>
           Schválení{" "}
           <span className="count-badge">
-            {(snapshot?.approvals.skills.length ?? 0) + (snapshot?.approvals.scripts.length ?? 0)}
+            {(snapshot?.approvals.skills.length ?? 0) +
+              (snapshot?.approvals.scripts.length ?? 0) +
+              (snapshot?.approvals.merges.length ?? 0)}
           </span>
         </button>
       </div>
 
       {error && <div className="memory-alert error"><AlertTriangle size={14} /> {error}</div>}
       {message && <div className="memory-alert ok"><Check size={14} /> {message}</div>}
+      {deletedBackup && (
+        <div className="memory-alert ok">
+          <RotateCcw size={14} /> Smazaný záznam má zálohu.
+          <button className="tool-button" disabled={busy} onClick={() => void restore(deletedBackup)}>
+            Vrátit smazání
+          </button>
+        </div>
+      )}
 
       {tab === "memory" && (
         <div className="memory-columns">
@@ -294,6 +341,23 @@ export function MemoryPanel({
                 </div>
                 <p>{selected.description}</p>
                 <pre>{selected.body || "(bez těla)"}</pre>
+                {backups.length > 0 && (
+                  <div className="memory-history">
+                    <div className="memory-history-title"><History size={13} /> Historie ({backups.length})</div>
+                    {backups.slice(0, 5).map((entry) => (
+                      <div className="memory-history-row" key={entry.backup}>
+                        <small>{new Date(entry.createdAt).toLocaleString("cs-CZ")}</small>
+                        <button
+                          className="tool-button"
+                          disabled={busy}
+                          onClick={() => void restore(entry.backup, entry.path)}
+                        >
+                          <RotateCcw size={12} /> Obnovit
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <div className="memory-empty">Vyber záznam pro detail.</div>
@@ -350,7 +414,8 @@ export function MemoryPanel({
       {tab === "approvals" && (
         <div className="memory-list">
           {(snapshot?.approvals.skills.length ?? 0) === 0 &&
-            (snapshot?.approvals.scripts.length ?? 0) === 0 && (
+            (snapshot?.approvals.scripts.length ?? 0) === 0 &&
+            (snapshot?.approvals.merges.length ?? 0) === 0 && (
               <div className="memory-empty">Nic nečeká na schválení.</div>
             )}
           {snapshot?.approvals.skills.map((skill) => (
@@ -371,6 +436,35 @@ export function MemoryPanel({
                   className="tool-button danger"
                   disabled={busy}
                   onClick={() => void run(() => memoryAction("reject-skill", skill.name, projectId, projectCwd))}
+                >
+                  <X size={13} /> Zamítnout
+                </button>
+              </div>
+            </div>
+          ))}
+          {snapshot?.approvals.merges.map((proposal) => (
+            <div className="skill-row merge-row" key={`merge-${proposal.id}`}>
+              <div className="skill-row-main">
+                <strong>{proposal.mergedName} <span className="status-badge draft">sloučení</span></strong>
+                <small>{proposal.mergedDescription}</small>
+                <span className="memory-meta">
+                  {proposal.paths.join(" + ")}
+                  {proposal.reason ? ` · ${proposal.reason}` : ""}
+                </span>
+                {proposal.mergedBody && <pre className="merge-preview">{proposal.mergedBody}</pre>}
+              </div>
+              <div className="skill-row-actions">
+                <button
+                  className="tool-button"
+                  disabled={busy}
+                  onClick={() => void run(() => mergeAction("approve-merge", proposal.id, projectId, projectCwd))}
+                >
+                  <Check size={13} /> Sloučit
+                </button>
+                <button
+                  className="tool-button danger"
+                  disabled={busy}
+                  onClick={() => void run(() => mergeAction("reject-merge", proposal.id, projectId, projectCwd))}
                 >
                   <X size={13} /> Zamítnout
                 </button>

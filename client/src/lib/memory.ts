@@ -26,6 +26,7 @@ export type MemorySnapshot = {
   approvals: {
     skills: Array<{ name: string; description: string; path: string; status: string }>;
     scripts: Array<{ skill: string; path: string; hash: string }>;
+    merges: MergeProposal[];
   };
   sessions: Array<{ id: string; model: string; updated: string }>;
   stats: { memory: number; episodes: number; lastConsolidation: string | null };
@@ -102,16 +103,74 @@ export async function saveMemory(
   return parsed.path ?? input.path ?? "";
 }
 
+export type MergeProposal = {
+  id: number;
+  name: string;
+  paths: string[];
+  keepPath: string;
+  mergedName: string;
+  mergedDescription: string;
+  mergedBody: string;
+  mergedTags: string[];
+  reason: string;
+  status: string;
+  created: string;
+};
+
+export type MemoryBackup = { backup: string; path: string; createdAt: string };
+
+export async function memoryHistory(
+  relPath: string,
+  projectId: string,
+  projectCwd: string,
+): Promise<MemoryBackup[]> {
+  const result = await runTermuxCommand(
+    cliCommand(projectCwd, ["memory-history", relPath], projectId),
+    projectCwd,
+  );
+  if (!result.ok) throw new Error(result.stderr || result.reason || "Načtení historie selhalo.");
+  const parsed = JSON.parse(result.stdout) as { backups?: MemoryBackup[] };
+  return parsed.backups ?? [];
+}
+
+export async function restoreMemoryBackup(
+  backup: string,
+  target: string | undefined,
+  projectId: string,
+  projectCwd: string,
+): Promise<string> {
+  const args = ["memory-restore", backup];
+  if (target) args.push("--path", target);
+  const result = await runTermuxCommand(cliCommand(projectCwd, args, projectId), projectCwd);
+  if (!result.ok) throw new Error(result.stderr || result.reason || "Obnovení zálohy selhalo.");
+  const parsed = JSON.parse(result.stdout) as { path?: string };
+  return parsed.path ?? target ?? "";
+}
+
 export async function deleteMemory(
   relPath: string,
   projectId: string,
   projectCwd: string,
-): Promise<string> {
+): Promise<{ path: string; backup?: string | null }> {
   const result = await runTermuxCommand(
     cliCommand(projectCwd, ["memory-delete", relPath], projectId),
     projectCwd,
   );
   if (!result.ok) throw new Error(result.stderr || result.reason || "Smazání paměti selhalo.");
+  return JSON.parse(result.stdout) as { path: string; backup?: string | null };
+}
+
+export async function mergeAction(
+  action: "approve-merge" | "reject-merge",
+  id: number,
+  projectId: string,
+  projectCwd: string,
+): Promise<string> {
+  const result = await runTermuxCommand(
+    cliCommand(projectCwd, [action, String(id)], projectId),
+    projectCwd,
+  );
+  if (!result.ok) throw new Error(result.stderr || result.reason || `${action} selhalo.`);
   return result.stdout.trim();
 }
 

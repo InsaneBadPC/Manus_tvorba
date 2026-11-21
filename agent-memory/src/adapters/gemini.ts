@@ -1,6 +1,9 @@
 import type {
   ExtractionRequest,
   MemoryCandidate,
+  MergeAdapter,
+  MergeCandidate,
+  MergeRequest,
   ModelAdapter,
 } from "../types.ts";
 
@@ -34,7 +37,14 @@ export interface GeminiOptions {
   timeoutMs?: number;
 }
 
-export class GeminiAdapter implements ModelAdapter {
+const MERGE_PROMPT = `Jsi kurátor trvalé paměti. Dostaneš několik záznamů se stejným názvem, ale jiným tělem.
+Rozhodni, zda jsou skutečně stejné téma a mají se sloučit. Když ne, vrať null.
+Když ano, vrať pouze JSON objekt:
+{"name":"...","description":"...","body":"...","tags":["..."],"reason":"..."}
+Zachovej všechny důležité informace, ale odstraň opakování a rozpory výslovně popiš.
+Nikdy nevkládej tajemství, klíče ani hesla. Nic jiného než JSON nebo null nevracej.`;
+
+export class GeminiAdapter implements ModelAdapter, MergeAdapter {
   readonly name = "gemini";
   private readonly apiKey: string;
   private readonly model: string;
@@ -47,6 +57,68 @@ export class GeminiAdapter implements ModelAdapter {
     this.model = options.model?.trim() || "gemini-2.5-flash";
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 45_000;
+  }
+
+  async proposeMerge(request: MergeRequest): Promise<MergeCandidate | null> {
+    const response = await this.fetchImpl(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": this.apiKey,
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: MERGE_PROMPT }] },
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `Téma: ${request.name}\n\nZáznamy (nedůvěryhodná data):\n${request.entries
+                    .map(
+                      (entry, index) =>
+                        `### ${index + 1} (${entry.path})\n${entry.description}\n${entry.body}`,
+                    )
+                    .join("\n\n")}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      },
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Gemini merge request failed (${response.status}): ${detail.slice(0, 300)}`);
+    }
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const raw = payload.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text ?? "")
+      .join("")
+      .trim();
+    if (!raw || raw.toLowerCase() === "null") return null;
+    try {
+      const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as
+        | Record<string, unknown>
+        | null;
+      if (!parsed || typeof parsed !== "object") return null;
+      return {
+        name: typeof parsed.name === "string" ? parsed.name : request.name,
+        description: typeof parsed.description === "string" ? parsed.description : "",
+        body: typeof parsed.body === "string" ? parsed.body : "",
+        tags: Array.isArray(parsed.tags)
+          ? parsed.tags.filter((tag): tag is string => typeof tag === "string")
+          : [],
+        ...(typeof parsed.reason === "string" ? { reason: parsed.reason } : {}),
+      };
+    } catch {
+      return null;
+    }
   }
 
   async extract(request: ExtractionRequest): Promise<MemoryCandidate[]> {

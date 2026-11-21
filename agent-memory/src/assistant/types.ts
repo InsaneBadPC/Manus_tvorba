@@ -1,4 +1,5 @@
 import type { MemoryContext } from "../context.ts";
+import type { EmbeddingAdapter } from "../embeddings.ts";
 
 export type ChatRole = "user" | "assistant" | "tool";
 
@@ -111,6 +112,7 @@ export interface AssistantRunOptions {
   maxModelCalls?: number;
   processRunner?: ProcessRunner;
   extractor?: import("../types.ts").ModelAdapter;
+  embeddingAdapter?: EmbeddingAdapter;
   onEvent?: (event: AssistantEvent) => void;
 }
 

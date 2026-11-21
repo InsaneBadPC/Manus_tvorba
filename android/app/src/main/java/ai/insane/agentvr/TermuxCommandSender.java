@@ -14,6 +14,16 @@ final class TermuxCommandSender {
     private TermuxCommandSender() {}
 
     static boolean send(Context context, String command, String cwd) {
+        return sendWithResult(context, command, cwd, null, "Insane AI Agent – údržba paměti");
+    }
+
+    static boolean sendWithResult(
+        Context context,
+        String command,
+        String cwd,
+        android.app.PendingIntent resultIntent,
+        String label
+    ) {
         if (command == null || command.trim().isEmpty() || command.length() > 16_000) {
             return false;
         }
@@ -33,11 +43,17 @@ final class TermuxCommandSender {
         );
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
         intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
-        intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Insane AI Agent – údržba paměti");
+        intent.putExtra(
+            "com.termux.RUN_COMMAND_COMMAND_LABEL",
+            label == null || label.trim().isEmpty() ? "Insane AI Agent" : label
+        );
         intent.putExtra(
             "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION",
-            "Background consolidation of the local agent memory."
+            "Command requested by the Insane AI Agent Android client."
         );
+        if (resultIntent != null) {
+            intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultIntent);
+        }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent);

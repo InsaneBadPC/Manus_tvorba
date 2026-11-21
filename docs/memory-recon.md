@@ -5,6 +5,8 @@ Repozitář: `InsaneBadPC/Manus_tvorba` (commit `a4ffdc4` + dva specifikační d
 Metoda: čtení kódu, konfigurace a build skriptů; měření FTS5 v Node 24 přímo v Termuxu.  
 Rozsah: pouze průzkum. V této fázi nebyl změněn žádný kód aplikace.
 
+> Historický snapshot z 2026-11-19. Tabulka „co chybí“ popisuje stav před Fázemi 1–3; aktuální implementaci popisují `docs/memory-architecture.md` a `docs/memory-phase2.md`.
+
 ## 1. Co aplikace je
 
 - Webové UI: React 19 + Vite + Tailwind + Radix, stav v Reactu a `localStorage`.

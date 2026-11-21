@@ -1,6 +1,6 @@
 # Fáze 2 a 3 — asistent, samoučení a údržba
 
-Stav: jádro je implementované v `agent-memory/` a otestované 44 testy. Android APK má obrazovku paměti a WorkManager údržbu; asistent používá Gemini přes jediný adaptér a nástroje se schvalováním.
+Stav: jádro je implementované v `agent-memory/` a otestované 48 testy. Android APK má obrazovku paměti, WorkManager údržbu a foreground službu pro dlouhé příkazy; asistent používá Gemini přes jediný adaptér a nástroje se schvalováním.
 
 ## 1. Epizody
 
@@ -119,22 +119,30 @@ node agent-memory/src/cli.ts consolidate --idle --charging --curator --merge-dup
 2. zkontroluje `PRAGMA integrity_check`,
 3. pokud je předán `curator`, vytěží z epizod starších než retention trvalá fakta; při chybě surové epizody **nesmaže**,
 4. smaže epizody starší než `--retention-days` (výchozí 30),
-5. volitelně sloučí přesné duplicity (`--merge-duplicates`); podobné záznamy s jiným tělem nechá být,
-6. vypíše zbývající duplicity názvů a stav fronty schválení,
-7. zapíše `last_consolidation` do `meta`.
+5. volitelně sloučí přesné duplicity (`--merge-duplicates`); každý mazaný soubor nejdřív zazálohuje,
+6. s `curator.mergeAdapter` vytvoří jen `pending` návrhy sloučení podobných záznamů (`--propose-merges`),
+7. vypíše zbývající duplicity názvů a stav fronty schválení,
+8. zapíše `last_consolidation` do `meta`.
 
-Curator je jen návrhář kandidátů. Prochází stejnou validací, dedupem a filtrem tajemství jako běžná extrakce.
+Curator je jen návrhář kandidátů. Prochází stejnou validací, dedupem a filtrem tajemství jako běžná extrakce. Návrh sloučení se nikdy neprovede sám: `approveMerge()` znovu načte aktuální soubory, uloží sloučený záznam, zbylé soubory zazálohuje a smaže. UI i CLI používají stejnou funkci.
 
 ## 8. Android
 
-- `MemoryPanel.tsx` načítá `cli.ts ui` přes Termux bridge, umí prohlížet a editovat záznamy, mazat je, schválit draft, zamítnout ho, schválit hash skriptu a přestavět index.
+- `MemoryPanel.tsx` načítá `cli.ts ui` přes Termux bridge, umí prohlížet a editovat záznamy, mazat je, otevřít historii záloh a obnovit předchozí verzi, schválit draft, zamítnout ho, schválit hash skriptu, schválit nebo zamítnout návrh sloučení a přestavět index.
 - `MemoryMaintenanceWorker` běží přes WorkManager s constraints `charging`, `device idle` a `battery not low`; znovu zkontroluje nabíjení a vypnutý displej.
-- Worker předá `--idle --charging`; pokud je v Termuxu `GEMINI_API_KEY`, přidá `--curator`.
+- Worker předá `--idle --charging --merge-duplicates`; pokud je v Termuxu `GEMINI_API_KEY`, přidá `--curator --propose-merges`.
+- Chat má přepínač „Na pozadí“. `AssistantTaskService` (foreground, `dataSync`) drží wake lock a notifikaci, spustí příkaz přes Termux a výsledek uloží do `cacheDir/assistant-tasks/<taskId>.log`; `AssistantTaskPlugin` nabízí `start`, `status`, `read` a `stop`.
 - APK nikdy nespouští shell přímo. Vše jde přes Termux `RUN_COMMAND`.
 
-## 9. Co zůstává nad rámec
+## 9. Zálohy, embeddingy a limity
 
-- Foreground service pro dlouhé asistentské úlohy a streamování do UI.
-- Historie a undo pro editaci paměti (zálohy zapisovaných souborů existují, UI je zatím neumí vrátit).
-- Embeddingy a vektorové hledání.
-- Automatické slučování duplicit; nyní se pouze reportují.
+Každý přepis nebo smazání paměťového souboru vytvoří zálohu v `~/.agent/backups/memory/<timestamp>/`. `memory-history` a UI historii zobrazí, `memory-restore` a UI obnoví konkrétní verzi; obnova znovu zapíše index.
+
+Embeddingy jsou volitelné. `embed` uloží float32 vektory pro aktuální model a dimenzi, `search --semantic` a `context --semantic` je zkombinují s FTS. Bez klíče se použije FTS fallback; neúspěšné embeddingy nikdy nezablokují běžné hledání.
+
+Záměrné limity:
+
+- Foreground služba není streamovací transport; průběžný výstup zůstává v Termuxu.
+- Automaticky se slučují jen přesné duplicity; podobné záznamy čekají na člověka.
+- Model nikdy sám neaktivuje skill ani neprovede sloučení.
+- Bez Android SDK nelze APK sestavit lokálně; build a podpis ověřuje CI.

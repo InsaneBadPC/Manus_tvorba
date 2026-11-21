@@ -387,6 +387,11 @@ EOF
 .memory-edit textarea { resize: vertical; min-height: 80px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .memory-edit .memory-check { flex-direction: row; align-items: center; gap: 6px; }
 .memory-edit .memory-check input { width: auto; }
+.memory-history { margin-top: 10px; border-top: 1px solid rgba(70,178,225,.18); padding-top: 7px; }
+.memory-history-title { display: flex; align-items: center; gap: 4px; color: #8fb2c8; font-size: 9px; margin-bottom: 4px; }
+.memory-history-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 0; }
+.memory-history-row small { color: #6f8fa4; font-size: 9px; }
+.merge-preview { max-height: 90px; overflow: auto; margin: 5px 0 0; padding: 5px; border-radius: 5px; background: rgba(2,20,39,.6); color: #9fc4d8; font: 10px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
 .memory-detail-head strong { color: #effcff; font-size: 12px; }
 .memory-detail-head small { margin: 2px 0 6px; color: #668da6; font-size: 9px; }
 .memory-detail p { margin: 0 0 6px; color: #aacbdb; font-size: 11px; }

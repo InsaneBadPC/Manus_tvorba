@@ -101,6 +101,32 @@ export interface ModelAdapter {
   extract(request: ExtractionRequest): Promise<MemoryCandidate[]>;
 }
 
+export interface MergeEntry {
+  path: string;
+  name: string;
+  description: string;
+  body: string;
+  tags: string[];
+}
+
+export interface MergeRequest {
+  name: string;
+  entries: MergeEntry[];
+}
+
+export interface MergeCandidate {
+  name: string;
+  description: string;
+  body: string;
+  tags: string[];
+  reason?: string;
+}
+
+/** A model may propose a merge; only the user can approve the write. */
+export interface MergeAdapter {
+  proposeMerge(request: MergeRequest): Promise<MergeCandidate | null>;
+}
+
 export interface ExtractionSkip {
   name: string;
   reason: string;

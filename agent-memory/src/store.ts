@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { backupExisting } from "./backups.ts";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -305,6 +306,7 @@ export class MemoryStore {
       updated: updatedAt,
     };
     const content = serializeFrontmatter(data, value.body);
+    await backupExisting(this.root, relativeTo(this.root, target));
     await atomicWrite(target, content);
     const file = await this.readAbsolute(target);
     return { file, created };
