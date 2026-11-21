@@ -1,4 +1,6 @@
-# Insane AI Agent VR UI
+# Orin – operační asistent
+
+Aplikace i její hlavní asistent se jmenují **Orin**.
 
 React / Express / tRPC / Drizzle starter, adapted from the Sandbox web-db-user template.
 

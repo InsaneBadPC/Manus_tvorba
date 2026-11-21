@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "ai.insane.agentvr",
-  appName: "Insane AI Agent",
+  appName: "Orin",
   webDir: "dist/public",
   server: {
     // Production APK uses bundled assets. Keep this disabled for release builds.

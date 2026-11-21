@@ -92,7 +92,7 @@ export function SceneViewport({ eye = "normal", onPartClick }: { eye?: Eye; onPa
     renderer.toneMappingExposure = 1.28;
     renderer.setClearAlpha(0);
     renderer.domElement.className = "scene-canvas";
-    renderer.domElement.setAttribute("aria-label", "3D scéna Insane AI Agent VR");
+    renderer.domElement.setAttribute("aria-label", "3D scéna Orin VR");
     host.appendChild(renderer.domElement);
 
     const ambient = new THREE.HemisphereLight(0x8bdcff, 0x061126, 1.7);

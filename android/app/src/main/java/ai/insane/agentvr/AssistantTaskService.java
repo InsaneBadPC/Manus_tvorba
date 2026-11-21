@@ -78,7 +78,7 @@ public class AssistantTaskService extends Service {
             command,
             cwd,
             result,
-            label == null ? "Insane AI Agent – dlouhá úloha" : label
+            label == null ? "Orin – dlouhá úloha" : label
         );
         if (!sent) {
             append(output, "\n[bridge] Termux RUN_COMMAND se nepodařilo odeslat.\n");
@@ -123,7 +123,7 @@ public class AssistantTaskService extends Service {
         if (wakeLock != null && wakeLock.isHeld()) return;
         PowerManager manager = (PowerManager) getSystemService(Context.POWER_SERVICE);
         if (manager == null) return;
-        wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "InsaneAI:assistant-task");
+        wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Orin:assistant-task");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire(30 * 60 * 1000L);
     }

@@ -74,8 +74,8 @@ public class TermuxBridgePlugin extends Plugin {
         intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", normalizeWorkdir(cwd));
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
         intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
-        intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Insane AI Agent");
-        intent.putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "Command requested by the Insane AI Agent workspace.");
+        intent.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Orin");
+        intent.putExtra("com.termux.RUN_COMMAND_COMMAND_DESCRIPTION", "Command requested by the Orin workspace.");
 
         Intent resultIntent = new Intent(getContext(), TermuxResultReceiver.class);
         resultIntent.putExtra(TermuxResultReceiver.EXTRA_EXECUTION_ID, executionId);

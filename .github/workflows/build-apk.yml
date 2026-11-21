@@ -87,7 +87,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: insane-ai-agent-vr-release-apk-${{ github.sha }}
+          name: orin-release-apk-${{ github.sha }}
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -96,23 +96,23 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/release/app-release.apk release/insane-ai-agent-vr.apk
-          SHA256=$(sha256sum release/insane-ai-agent-vr.apk | cut -d' ' -f1)
-          BADGING=$(${ANDROID_HOME}/build-tools/36.0.0/aapt2 dump badging release/insane-ai-agent-vr.apk | head -1)
+          cp android/app/build/outputs/apk/release/app-release.apk release/orin.apk
+          SHA256=$(sha256sum release/orin.apk | cut -d' ' -f1)
+          BADGING=$(${ANDROID_HOME}/build-tools/36.0.0/aapt2 dump badging release/orin.apk | head -1)
           VERSION_CODE=$(printf '%s' "$BADGING" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           VERSION_NAME=$(printf '%s' "$BADGING" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
           echo "APK SHA-256: $SHA256, versionCode: $VERSION_CODE, versionName: $VERSION_NAME"
           cat > release/latest.json <<EOF
           {
             "app": "ai.insane.agentvr",
-            "name": "Insane AI Agent",
+            "name": "Orin",
             "build": "${GITHUB_SHA}",
             "run": "${GITHUB_RUN_NUMBER}",
             "versionCode": "${VERSION_CODE}",
             "versionName": "${VERSION_NAME}",
             "sha256": "${SHA256}",
             "signature": "${APK_CERT_SHA256}",
-            "apk": "https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/insane-ai-agent-vr.apk",
+            "apk": "https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/orin.apk",
             "release": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/latest"
           }
           EOF
@@ -122,11 +122,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: Insane AI Agent – latest build
+          name: Orin – latest build
           body: Signed APK build from commit ${{ github.sha }}. Signature SHA-256 is pinned in android/EXPECTED_SIGNING_CERT_SHA256.
           prerelease: false
           make_latest: true
           overwrite_files: true
           files: |
-            release/insane-ai-agent-vr.apk
+            release/orin.apk
             release/latest.json

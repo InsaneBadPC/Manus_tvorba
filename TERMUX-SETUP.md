@@ -1,4 +1,4 @@
-# Termux setup pro Insane AI Agent
+# Termux setup pro Orin
 
 Aplikace používá nativní Capacitor plugin `TermuxBridge`, který posílá příkazy do Termuxu přes `com.termux.app.RunCommandService` a vrací stdout, stderr a exit code.
 
@@ -18,7 +18,7 @@ pkg update
 pkg install git nodejs python clang make
 ```
 
-4. V nastavení Androidu povolit aplikaci Insane AI Agent dodatečné oprávnění `Run commands in Termux environment`, pokud ho systém nabídne.
+4. V nastavení Androidu povolit aplikaci Orin dodatečné oprávnění `Run commands in Termux environment`, pokud ho systém nabídne.
 5. Pokud projekt leží ve sdíleném úložišti, povolit Termuxu přístup k úložišti pomocí `termux-setup-storage`.
 6. Pro dlouhé agenty vypnout agresivní optimalizaci baterie pro Termux.
 

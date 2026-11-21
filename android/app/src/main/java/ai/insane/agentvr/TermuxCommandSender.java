@@ -14,7 +14,7 @@ final class TermuxCommandSender {
     private TermuxCommandSender() {}
 
     static boolean send(Context context, String command, String cwd) {
-        return sendWithResult(context, command, cwd, null, "Insane AI Agent – údržba paměti");
+        return sendWithResult(context, command, cwd, null, "Orin – údržba paměti");
     }
 
     static boolean sendWithResult(
@@ -45,11 +45,11 @@ final class TermuxCommandSender {
         intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");
         intent.putExtra(
             "com.termux.RUN_COMMAND_COMMAND_LABEL",
-            label == null || label.trim().isEmpty() ? "Insane AI Agent" : label
+            label == null || label.trim().isEmpty() ? "Orin" : label
         );
         intent.putExtra(
             "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION",
-            "Command requested by the Insane AI Agent Android client."
+            "Command requested by the Orin Android client."
         );
         if (resultIntent != null) {
             intent.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", resultIntent);

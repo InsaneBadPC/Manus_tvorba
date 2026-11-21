@@ -19,7 +19,7 @@ import type {
 const DEFAULT_MAX_STEPS = 8;
 const MAX_SKILL_CHARS = 4_000;
 
-const SYSTEM_PROMPT = `Jsi operační asistent aplikace Insane AI Agent. Běžíš v Termuxu a ovládáš projekt uživatele přes nástroje.
+const SYSTEM_PROMPT = `Jsi Orin, operační asistent aplikace Orin. Běžíš v Termuxu a ovládáš projekt uživatele přes nástroje.
 
 Principy:
 1. Jednej, neradil. Když lze úkol provést nástrojem, proveď ho a ověř výsledek.

@@ -1,6 +1,6 @@
 # Funkce a položky UI — ověřovací checklist
 
-Zdroj: anotovaná referenční legenda Insane AI Agent VR. Každý řádek odpovídá původnímu ID z legendy. Stav `OK` znamená, že prvek existuje, má správné napojení a jeho chování bylo ověřeno v aplikaci.
+Zdroj: anotovaná referenční legenda Orin VR. Každý řádek odpovídá původnímu ID z legendy. Stav `OK` znamená, že prvek existuje, má správné napojení a jeho chování bylo ověřeno v aplikaci.
 
 ## Okna a panely
 
