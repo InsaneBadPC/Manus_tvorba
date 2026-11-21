@@ -415,7 +415,7 @@ export default function Home() {
   };
 
   const toggleNormalOrientation = async () => {
-    const next = normalOrientation === "landscape" ? "portrait" : "landscape";
+    const next = window.matchMedia("(orientation: portrait)").matches ? "landscape" : "portrait";
     setNormalOrientation(next);
     await applyNormalOrientation(next);
   };
@@ -475,7 +475,7 @@ export default function Home() {
 
   return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && !vrMode && setFocusedPanel(null)}>
     <div className="display-hud" onClick={(event) => event.stopPropagation()}>
-      {!vrMode && <button {...actionProps("C45", "display.orientation.toggle")} className="display-hud-button" onClick={() => void toggleNormalOrientation()} aria-label="Přepnout orientaci displeje"><Smartphone size={15} /> {normalOrientation === "landscape" ? "Na výšku" : "Na šířku"}</button>}
+      {!vrMode && <button {...actionProps("C45", "display.orientation.toggle")} className="display-hud-button" onClick={() => void toggleNormalOrientation()} aria-label="Přepnout orientaci displeje"><Smartphone size={15} /> Otočit</button>}
       <button {...actionProps("B35", "display.vr.toggle")} className={`display-hud-button vr ${vrMode ? "active" : ""}`} onClick={() => void toggleDisplayMode()} aria-label={vrMode ? "Ukončit VR režim" : "Zapnout VR brýle"}><Monitor size={16} /> {vrMode ? "Ukončit VR" : "VR brýle"}</button>
     </div>
     {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="left" onPartClick={handleScenePartClick} /></div>{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="right" /></div>{dashboardSurface("right")}</div></div></div> : <div className="normal-stage"><div className="scene-main"><SceneViewport eye="normal" onPartClick={handleScenePartClick} /></div>{dashboardSurface("normal")}</div>}

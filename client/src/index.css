@@ -425,6 +425,8 @@ body { overflow-x: hidden; }
   border: 0;
   box-shadow: none;
 }
+.mode-normal .normal-stage > .topbar { position: sticky; top: 0; }
+.mode-normal .normal-stage > .bottom-nav { position: fixed; }
 .mode-normal .normal-stage > .dashboard { width: min(100%, 1180px); padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
 .app-shell.mode-vr { display: flex; align-items: center; justify-content: center; height: 100vh; height: 100dvh; min-height: 0; padding: 0; overflow: hidden; }
 .app-shell.mode-vr .stereo-stage {
