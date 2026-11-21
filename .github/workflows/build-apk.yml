@@ -123,6 +123,18 @@ jobs:
           }
           EOF
 
+      - name: Remove stale release assets
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for asset in $(gh release view latest --json assets --jq '.assets[].name' 2>/dev/null || true); do
+            case "$asset" in
+              orin.apk|latest.json) ;;
+              *) echo "Removing stale asset: $asset"; gh release delete-asset latest "$asset" --yes ;;
+            esac
+          done
+
       - name: Publish latest GitHub release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
