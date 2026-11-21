@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, Bot, Brain, Check, ChevronDown, ChevronRight, Code2, Command,
   Folder, GitBranch, History, LayoutDashboard, Menu, MessageCircle, Mic,
-  Monitor, Network, Play, Plus, Send, Settings,
+  Monitor, Network, Play, Plus, Send, Settings, Smartphone,
   SlidersHorizontal, Sparkles, TerminalSquare, X, Zap,
 } from "lucide-react";
 import { isTermuxBridgeAvailable, runTermuxCommand } from "@/lib/termux";
@@ -46,6 +46,54 @@ function stored<T>(key: string, fallback: T): T {
     const value = window.localStorage.getItem(`agentvr.${key}`);
     return value ? JSON.parse(value) as T : fallback;
   } catch { return fallback; }
+}
+
+type DisplayModePlugin = {
+  setOrientation?: (args: { orientation: "auto" | "portrait" | "landscape" }) => Promise<void>;
+  setVrMode?: (args: { enabled: boolean }) => Promise<void>;
+};
+
+type DisplayBridge = {
+  isNativePlatform?: () => boolean;
+  Plugins?: { DisplayMode?: DisplayModePlugin };
+};
+
+type ScreenOrientationLock = ScreenOrientation & {
+  lock?: (type: "portrait" | "landscape") => Promise<void>;
+  unlock?: () => void;
+};
+
+function displayBridge(): { native: DisplayBridge | undefined; plugin: DisplayModePlugin | undefined } {
+  const native = (globalThis as typeof globalThis & { Capacitor?: DisplayBridge }).Capacitor;
+  return { native, plugin: native?.Plugins?.DisplayMode };
+}
+
+async function applyNormalOrientation(orientation: "auto" | "portrait" | "landscape") {
+  const { native, plugin } = displayBridge();
+  if (native?.isNativePlatform?.() && plugin?.setOrientation) {
+    await plugin.setOrientation({ orientation }).catch(() => undefined);
+    return;
+  }
+  const screenOrientation = window.screen?.orientation as ScreenOrientationLock | undefined;
+  if (orientation === "auto") screenOrientation?.unlock?.();
+  else await screenOrientation?.lock?.(orientation).catch(() => undefined);
+}
+
+async function applyVrDisplay(enabled: boolean, restoreOrientation: "auto" | "portrait" | "landscape") {
+  const { native, plugin } = displayBridge();
+  if (native?.isNativePlatform?.() && plugin?.setVrMode) {
+    await plugin.setVrMode({ enabled }).catch(() => undefined);
+    return;
+  }
+  const screenOrientation = window.screen?.orientation as ScreenOrientationLock | undefined;
+  if (enabled) {
+    await document.documentElement.requestFullscreen?.().catch(() => undefined);
+    await screenOrientation?.lock?.("landscape").catch(() => undefined);
+    return;
+  }
+  screenOrientation?.unlock?.();
+  if (document.fullscreenElement) await document.exitFullscreen?.().catch(() => undefined);
+  if (restoreOrientation !== "auto") await screenOrientation?.lock?.(restoreOrientation).catch(() => undefined);
 }
 
 function useStoredState<T>(key: string, fallback: T) {
@@ -99,6 +147,7 @@ export default function Home() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [vrMode, setVrMode] = useStoredState("display.vr", false);
+  const [normalOrientation, setNormalOrientation] = useStoredState<"auto" | "portrait" | "landscape">("display.orientation", "auto");
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatus>({ batteryPercent: null, charging: null, signalDbm: null, networkDownlinkMbps: null, cpuCores: null, ramUsedMb: null, ramTotalMb: null, source: "unavailable" });
 
   useEffect(() => {
@@ -169,9 +218,8 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const orientation = window.screen?.orientation as ScreenOrientation & { lock?: (type: string) => Promise<void>; unlock?: () => void } | undefined;
-    if (vrMode) orientation?.lock?.("landscape").catch(() => undefined);
-    else orientation?.unlock?.();
+    if (vrMode) void applyVrDisplay(true, normalOrientation);
+    // Re-apply only when VR mode changes; normal orientation changes are handled by the toggle.
   }, [vrMode]);
 
   const visibleAgents = useMemo(() => agents.filter(agent => activeProject?.agentClis.includes(agent.cli)).map((agent, index) => ({ ...agent, status: agentAvailability[agent.cli] ?? "offline", active: activeAgent === index })), [activeAgent, activeProject, agentAvailability]);
@@ -363,8 +411,13 @@ export default function Home() {
   const toggleDisplayMode = async () => {
     const next = !vrMode;
     setVrMode(next);
-    if (next) await document.documentElement.requestFullscreen?.().catch(() => undefined);
-    else if (document.fullscreenElement) await document.exitFullscreen?.().catch(() => undefined);
+    await applyVrDisplay(next, normalOrientation);
+  };
+
+  const toggleNormalOrientation = async () => {
+    const next = normalOrientation === "landscape" ? "portrait" : "landscape";
+    setNormalOrientation(next);
+    await applyNormalOrientation(next);
   };
 
   const handleScenePartClick = (part: string) => {
@@ -378,7 +431,7 @@ export default function Home() {
     <header className="topbar">
       <div className="brand-mark"><Sparkles size={22} /><div><strong>Orin</strong><span>operační asistent</span></div></div>
       <div className="status-strip"><span id="C01" data-element-id="C01" data-hook="status.online"><span className={`online-dot ${navigator.onLine ? "" : "offline"}`} /> {navigator.onLine ? "Online" : "Offline"}</span><span className="muted">•</span><span id="C02" data-element-id="C02" data-hook="status.wifi">{navigator.onLine ? "Síť" : "Offline"}</span><span id="C03" data-element-id="C03" data-hook="status.display">Displej</span><span id="C04" data-element-id="C04" data-hook="status.signal">{deviceStatus.signalDbm === null ? "Signál —" : `Signál ${deviceStatus.signalDbm} dBm`}</span><span className="device-status-chip" data-hook="device.battery">Baterie {deviceStatus.batteryPercent === null ? "—" : `${deviceStatus.batteryPercent}%${deviceStatus.charging ? " ⚡" : ""}`}</span><span className="device-status-chip" data-hook="device.network">Síť {deviceStatus.networkDownlinkMbps === null ? "—" : `${deviceStatus.networkDownlinkMbps.toFixed(1)} Mb/s`}</span><span className="device-status-chip" data-hook="device.cpu">CPU {deviceStatus.cpuCores === null ? "—" : `${deviceStatus.cpuCores} jader`}</span><span className="device-status-chip" data-hook="device.ram">RAM {deviceStatus.ramUsedMb !== null && deviceStatus.ramTotalMb ? `${deviceStatus.ramUsedMb}/${deviceStatus.ramTotalMb} MB` : "—"}</span><span className="muted">•</span> Připraveno {updateInfo?.available && <button {...actionProps("B27", "app.update.available")} className="update-pill" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk, updateInfo.sha256); setUpdateBusy(false); }}>{updateBusy ? "Stahuji…" : "Nová APK"}</button>}</div>
-      <button {...actionProps("B05", "navigation.settings") } className={`top-icon ${selectedNav === "Nastavení" ? "active" : ""}`} onClick={() => navigateTo("Nastavení")} aria-label="Nastavení"><Settings size={18} /></button><button {...actionProps("B35", "display.vr.toggle")} className={`display-toggle ${vrMode ? "active" : ""}`} onClick={toggleDisplayMode} aria-label="Přepnout zobrazení">{vrMode ? "2D 9:16" : "VR 16:9"}</button>
+      <button {...actionProps("B05", "navigation.settings") } className={`top-icon ${selectedNav === "Nastavení" ? "active" : ""}`} onClick={() => navigateTo("Nastavení")} aria-label="Nastavení"><Settings size={18} /></button>
     </header>
 
     {updateInfo?.available && <div className="update-banner" role="status"><div><strong>Je dostupná nová verze aplikace</strong><small>Build {updateInfo.run ?? updateInfo.build.slice(0, 8)} z GitHubu</small></div><button {...actionProps("B28", "app.update.install")} className="primary-button" onClick={async () => { if (!updateInfo.apk) return; setUpdateBusy(true); await installUpdate(updateInfo.apk, updateInfo.sha256); setUpdateBusy(false); }}>{updateBusy ? "Stahuji APK…" : "Aktualizovat"}</button></div>}
@@ -421,6 +474,10 @@ export default function Home() {
   </>);
 
   return <div className={`app-shell ${vrMode ? "mode-vr" : "mode-normal"}`} onClick={() => focusedPanel && !vrMode && setFocusedPanel(null)}>
+    <div className="display-hud" onClick={(event) => event.stopPropagation()}>
+      {!vrMode && <button {...actionProps("C45", "display.orientation.toggle")} className="display-hud-button" onClick={() => void toggleNormalOrientation()} aria-label="Přepnout orientaci displeje"><Smartphone size={15} /> {normalOrientation === "landscape" ? "Na výšku" : "Na šířku"}</button>}
+      <button {...actionProps("B35", "display.vr.toggle")} className={`display-hud-button vr ${vrMode ? "active" : ""}`} onClick={() => void toggleDisplayMode()} aria-label={vrMode ? "Ukončit VR režim" : "Zapnout VR brýle"}><Monitor size={16} /> {vrMode ? "Ukončit VR" : "VR brýle"}</button>
+    </div>
     {vrMode ? <div className="stereo-stage"><div className="vr-eye vr-eye-left"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="left" onPartClick={handleScenePartClick} /></div>{dashboardSurface("left")}</div></div><div className="vr-eye vr-eye-right" aria-hidden="true"><div className="vr-eye-surface"><div className="scene-main"><SceneViewport eye="right" /></div>{dashboardSurface("right")}</div></div></div> : <div className="normal-stage"><div className="scene-main"><SceneViewport eye="normal" onPartClick={handleScenePartClick} /></div>{dashboardSurface("normal")}</div>}
   </div>;
 }

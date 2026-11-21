@@ -6,6 +6,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(TermuxBridgePlugin.class);
+        registerPlugin(DisplayModePlugin.class);
         registerPlugin(AppUpdateBridgePlugin.class);
         registerPlugin(DeviceStatusBridgePlugin.class);
         registerPlugin(ProjectStoragePlugin.class);
